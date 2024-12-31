@@ -1,21 +1,22 @@
 # NFC Lock with MQTT
-Aplikasi ini adalah aplikasi yang sengaja dibuat dengan mengintregasikan perangkat custom dari sistem ESP32 yang memegang kendali Selenoid Door untuk mengunci pintu. aplikasi ini menggunakan prinsip sederhana dalam melakukan komunikasi dengan perangkat, dimana perangkat smartphone didekatkan ke sistem untuk mentriger kumparan nfc dengan data didalam chip nfc berupa informasi sistem seperti topic mqtt, topic ini dugunakan sebagai alamat jalus Broker dari smartphone.
+This application is designed by integrating a custom device from the ESP32 system, which controls the Solenoid Door for locking the door. The application uses a simple principle for communication with the device, where the smartphone is brought close to the system to trigger the NFC coil. The data inside the NFC chip contains system information like the MQTT topic, which is used as the address path to the Broker from the smartphone.
 
 # Dashboard
-   Pada tampilan Dashboard menampilkan beberapa tampilan seperti status aplikasi ke broker mqtt, user, history, wifi direct dan perangkat, dimana dengan detail sebagai berikut :
-   1. User
-        Menu user digunakan untuk menambah user untuk menggunakan aplikasi ini.
-   2. History
-         Menu ini digunakan untuk melihat riwayat akses pengguna terhadap aplikasinya dengan sistem.
-   3.  Wifi Direct
-        Fitur ini digunakan untuk komunikasi langsung antara smartphone dengan sistem sebagai jalur darurat apabila sistem tidak terhubung internet.
-   4. Perangkat
-         Menu ini digunakan untuk menambah perangkat baru.
+   The Dashboard view displays several features, such as the application status with the MQTT broker, user management, history, Wi-Fi direct, and devices, with details as follows:
+   1. **User**  
+        The user menu is used to add users to use this application.
+   2. **History**  
+        This menu allows you to view the history of user access to the system.
+   3. **Wi-Fi Direct**  
+        This feature allows direct communication between the smartphone and the system as an emergency path if the system is not connected to the internet.
+   4. **Devices**  
+        The device menu is used to add new devices.
 
-      Dan beberapa tamplan lainnya seperti ringkasan riwayat.
-![Gambar WhatsApp 2025-01-01 pukul 00 35 10_f8dc7303](https://github.com/user-attachments/assets/5fd702fd-839f-4195-a7cc-5798b302a1de)
-![Gambar WhatsApp 2025-01-01 pukul 00 35 10_6f47fb60](https://github.com/user-attachments/assets/e758311b-6268-492a-af82-7e400f225a2d)
-![Gambar WhatsApp 2025-01-01 pukul 00 35 09_498b0b8c](https://github.com/user-attachments/assets/5f1b96fc-f5c2-40ba-874c-f70f7257bc68)
+   And several other views like the summary of the history.
 
-# Arsip
-   Tampilan ini digunakan khusus admin dalam memantau aplikasi dan sistem, dimana dapat melihat riwayat user melakukan akses dan juga log dari sistem itu sendiri
+   ![WhatsApp Image 2025-01-01 at 00 35 10_1](https://github.com/user-attachments/assets/5fd702fd-839f-4195-a7cc-5798b302a1de =250x250)  
+   ![WhatsApp Image 2025-01-01 at 00 35 10_2](https://github.com/user-attachments/assets/e758311b-6268-492a-af82-7e400f225a2d =250x250)  
+   ![WhatsApp Image 2025-01-01 at 00 35 09_3](https://github.com/user-attachments/assets/5f1b96fc-f5c2-40ba-874c-f70f7257bc68 =250x250)
+
+# Archive
+   This view is specifically used by the admin to monitor the application and system, where they can see the history of user access and the system logs.
