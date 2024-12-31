@@ -24,6 +24,8 @@ DerivedData
 
 # Android/IntelliJ
 #
+
+source/Config/firebase.js
 build/
 .idea
 .gradle

@@ -1,0 +1,23 @@
+import { initializeApp } from 'firebase/app';
+import { getDatabase } from 'firebase/database';
+// import layanan Firebase lain yang Anda butuhkan
+
+// Konfigurasi Firebase Anda
+const firebaseConfig = {
+  apiKey: 'XXXXXXXXX',
+  authDomain: 'XXXX.firebaseapp.com',
+  databaseURL: 'https://XXXX-default-rtdb.asia-southeast1.firebasedatabase.app',
+  projectId: 'XXXX',
+  storageBucket: 'XXXX.appspot.com',
+  messagingSenderId: '0000',
+  appId: 'XXXXXXXXXXXXX',
+  measurementId: 'XXXXXX',
+};
+// Inisialisasi Firebase
+const app = initializeApp(firebaseConfig);
+
+// Inisialisasi Realtime Database
+const database = getDatabase(app);
+
+// Ekspor instance Firebase dan layanan yang diinisialisasi
+export { app, database };
