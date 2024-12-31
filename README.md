@@ -1,5 +1,5 @@
 # NFC Lock with MQTT
-This application is designed by integrating a custom device from the ESP32 system, which controls the Solenoid Door for locking the door. The application uses a simple principle for communication with the device, where the smartphone is brought close to the system to trigger the NFC coil. The data inside the NFC chip contains system information like the MQTT topic, which is used as the address path to the Broker from the smartphone.
+This application is designed by integrating a custom device from the ESP8266 system, which controls the Solenoid Door for locking the door. The application uses a simple principle for communication with the device, where the smartphone is brought close to the system to trigger the NFC coil. The data inside the NFC chip contains system information like the MQTT topic, which is used as the address path to the Broker from the smartphone.
 
 # Dashboard
    The Dashboard view displays several features, such as the application status with the MQTT broker, user management, history, Wi-Fi direct, and devices, with details as follows:
@@ -22,3 +22,12 @@ This application is designed by integrating a custom device from the ESP32 syste
 # Archive
    This view is specifically used by the admin to monitor the application and system, where they can see the history of user access and the system logs.
    ![Gambar WhatsApp 2025-01-01 pukul 00 35 10_6f47fb60](https://github.com/user-attachments/assets/e758311b-6268-492a-af82-7e400f225a2d)
+
+# Code ESP8266 for the system
+
+```javascript
+function greet(name) {
+  return `Hello, ${name}!`;
+}
+
+console.log(greet("Alice"));
