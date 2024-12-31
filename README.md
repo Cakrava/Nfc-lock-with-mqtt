@@ -14,16 +14,14 @@ This application is designed by integrating a custom device from the ESP8266 sys
 
    And several other views like the summary of the history.
 
-![Gambar WhatsApp 2025-01-01 pukul 00 35 10_f8dc7303](https://github.com/user-attachments/assets/5fd702fd-839f-4195-a7cc-5798b302a1de)
-![Gambar WhatsApp 2025-01-01 pukul 00 35 09_498b0b8c](https://github.com/user-attachments/assets/5f1b96fc-f5c2-40ba-874c-f70f7257bc68)
-
-
+![1](https://github.com/user-attachments/assets/ed586139-28e9-4f35-9415-69f1a615c280)
+![2](https://github.com/user-attachments/assets/22a3b81a-8718-405a-a975-e15b61daa0da)
 
 # Archive
    This view is specifically used by the admin to monitor the application and system, where they can see the history of user access and the system logs.
-   ![Gambar WhatsApp 2025-01-01 pukul 00 35 10_6f47fb60](https://github.com/user-attachments/assets/e758311b-6268-492a-af82-7e400f225a2d)
+![3](https://github.com/user-attachments/assets/d7abecc5-26a4-4f3a-a6c9-b9625626be6c)
 
-   
+
 
 # Code ESP8266 for the system
 This code is the program code from the esp8266 which works according to its function, namely sending online status to devicename-status and also receiving a message response from the topic devicename which will be received from the smartphone device.
