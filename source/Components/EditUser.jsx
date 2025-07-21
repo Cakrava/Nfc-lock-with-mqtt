@@ -4,9 +4,13 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  Image,
   StyleSheet,
+  ScrollView,
+  Modal,
+  Pressable,
+  Dimensions,
 } from 'react-native';
+import FastImage from 'react-native-fast-image';
 import Icon from 'react-native-vector-icons/Ionicons';
 import {launchImageLibrary} from 'react-native-image-picker';
 import {
@@ -15,33 +19,37 @@ import {
   uploadBytes,
   getDownloadURL,
 } from 'firebase/storage';
-import {database} from '../../source/Config/firebase'; // Firebase Realtime Database Config
+import {database} from '../../source/Config/firebase';
 import {ref, update, onValue} from 'firebase/database';
 import Toast from 'react-native-simple-toast';
 import {styleClass} from '../Config/styleClass';
 import {useGlobalStateContext} from '../Config/GlobalStateContext';
+
+const windowWidth = Dimensions.get('window').width;
 
 export default function EditUser({id, bottomSheetRef}) {
   const [name, setName] = useState('');
   const [nomorWhatsapp, setNomorWhatsapp] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [image, setImage] = useState(null); // URI Gambar
+  const [image, setImage] = useState(null);
   const [saving, setSaving] = useState(false);
-  const {refrashMyData, setRefreshMyData} = useGlobalStateContext();
-  const inputRef = useRef(null); // Membuat referensi untuk TextInput
+  const [saveFailed, setSaveFailed] = useState(false);
+  const {setRefreshMyData} = useGlobalStateContext();
+  const inputRef = useRef(null);
+
   const closeBottomSheet = () => {
     if (bottomSheetRef.current) {
       bottomSheetRef.current.close();
     }
     setRefreshMyData(true);
   };
+
   useEffect(() => {
-    // Fokus otomatis pada input saat komponen di-mount
     if (inputRef.current) {
       inputRef.current.focus();
     }
-  }, []); // Hanya dijalankan sekali saat komponen pertama kali dirender
+  }, []);
 
   useEffect(() => {
     const anggotaRef = ref(database, 'Anggota/' + id);
@@ -51,7 +59,7 @@ export default function EditUser({id, bottomSheetRef}) {
         setName(data.name);
         setNomorWhatsapp(data.nomorWhatsapp);
         setPassword(data.password);
-        setImage(data.imageUrl || null); // Load URL gambar jika ada
+        setImage(data.imageUrl || null);
       }
     });
   }, [id]);
@@ -64,7 +72,7 @@ export default function EditUser({id, bottomSheetRef}) {
 
     launchImageLibrary(options, response => {
       if (response.assets && response.assets.length > 0) {
-        setImage(response.assets[0].uri); // Simpan URI gambar
+        setImage(response.assets[0].uri);
       }
     });
   };
@@ -75,7 +83,7 @@ export default function EditUser({id, bottomSheetRef}) {
       return;
     }
 
-    let imageUrl = image; // Tetap gunakan gambar lama jika tidak diubah
+    let imageUrl = image;
 
     if (image && !image.startsWith('https://')) {
       try {
@@ -84,17 +92,15 @@ export default function EditUser({id, bottomSheetRef}) {
         const imageName = `images/${id}.jpg`;
         const storageReference = storageRef(storage, imageName);
 
-        // Upload file ke Firebase Storage
         const response = await fetch(image);
         const blob = await response.blob();
         await uploadBytes(storageReference, blob);
 
-        // Dapatkan URL gambar
         imageUrl = await getDownloadURL(storageReference);
       } catch (error) {
         console.error('Error uploading image:', error);
-        alert('Gagal mengunggah gambar!');
         setSaving(false);
+        setSaveFailed(true);
         return;
       }
     }
@@ -105,7 +111,7 @@ export default function EditUser({id, bottomSheetRef}) {
       name: name,
       password: password,
       nomorWhatsapp: nomorWhatsapp,
-      imageUrl: imageUrl, // Perbarui URL gambar
+      imageUrl: imageUrl,
     })
       .then(() => {
         Toast.show('Berhasil Memperbarui Data!', Toast.LONG);
@@ -116,137 +122,175 @@ export default function EditUser({id, bottomSheetRef}) {
       .catch(error => {
         console.error('Error updating data:', error);
         setSaving(false);
-        alert('Gagal memperbarui data!');
+        setSaveFailed(true);
       });
   };
 
   return (
-    <View style={styles.container}>
-      <TextInput
-        style={styles.input}
-        placeholder="ID"
-        value={id}
-        editable={false}
-      />
-      <TextInput
-        ref={inputRef}
-        style={styles.input}
-        placeholder="Nama"
-        value={name}
-        onChangeText={setName}
-      />
-      <TextInput
-        style={styles.input}
-        placeholder="Nomor Whatsapp"
-        value={nomorWhatsapp}
-        keyboardType="number-pad"
-        onChangeText={setNomorWhatsapp}
-      />
-      <View style={styles.passwordContainer}>
-        <TextInput
-          style={styles.passwordInput}
-          placeholder="Password"
-          value={password}
-          secureTextEntry={!showPassword}
-          onChangeText={setPassword}
-        />
-        <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
-          <Icon
-            name={showPassword ? 'eye-off-outline' : 'eye-outline'}
-            size={20}
-            color="#73BBA3"
-          />
-        </TouchableOpacity>
-      </View>
-      <TouchableOpacity style={styles.button} onPress={handleChooseImage}>
-        <Text style={styles.buttonText}>
-          {image ? 'Ubah Gambar' : 'Pilih Gambar'}
-        </Text>
-      </TouchableOpacity>
-      {image && (
-        <View style={styles.imagePreviewContainer}>
-          <Text style={styles.previewText}>Preview Gambar:</Text>
-          <Image source={{uri: image}} style={styles.imagePreview} />
+    <View style={styleClass('w-full h-full')}>
+      <ScrollView contentContainerStyle={styleClass('items-center p-3')}>
+        {/* ID */}
+        <View
+          style={{
+            width: '100%',
+            borderBottomWidth: 1,
+            borderColor: '#dedede',
+            paddingBottom: 10,
+          }}
+        >
+          <Text style={styleClass('text-2xl text-teal-500')}>
+            Perbarui Profile
+          </Text>
         </View>
-      )}
-      <TouchableOpacity
-        style={[styles.saveButton, styleClass('bg-aquamarine-500')]}
-        onPress={handleUpdateData}
+        <View style={styleClass('w-1/4 mt-3 mb-1 self-start')}>
+          <Text>ID</Text>
+        </View>
+        <TextInput
+          style={styleClass('w-full p-4 border rounded-lg text-md')}
+          placeholder="ID"
+          value={id}
+          editable={false}
+        />
+
+        {/* Nama */}
+        <View style={styleClass('w-1/4 mt-3 mb-1 self-start')}>
+          <Text>Nama</Text>
+        </View>
+        <TextInput
+          ref={inputRef}
+          style={styleClass('w-full p-4 border rounded-lg text-md')}
+          placeholder="e.g. John Smith"
+          placeholderTextColor="#dedede"
+          value={name}
+          onChangeText={setName}
+        />
+
+        {/* Nomor WhatsApp */}
+        <View style={styleClass('w-1/4 mt-3 mb-1 self-start')}>
+          <Text>Nomor Whatsapp</Text>
+        </View>
+        <TextInput
+          style={styleClass('w-full p-4 border rounded-lg text-md')}
+          placeholder="e.g. 08xxxxxxxxxx"
+          placeholderTextColor="#dedede"
+          value={nomorWhatsapp}
+          keyboardType="number-pad"
+          onChangeText={setNomorWhatsapp}
+        />
+
+        {/* Password */}
+        <View style={styleClass('w-1/4 mt-3 mb-1 self-start')}>
+          <Text>Password</Text>
+        </View>
+        <View
+          style={styleClass(
+            'w-full p-2 border rounded-lg flex-row items-center justify-between mb-5',
+          )}
+        >
+          <TextInput
+            style={styleClass('text-md w-1/8')}
+            placeholder="e.g. password"
+            placeholderTextColor="#dedede"
+            value={password}
+            secureTextEntry={!showPassword}
+            onChangeText={setPassword}
+          />
+          <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
+            <Icon
+              name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+              size={20}
+              color="#73BBA3"
+            />
+          </TouchableOpacity>
+        </View>
+
+        {/* Tombol Pilih Gambar */}
+        <TouchableOpacity
+          style={styleClass('w-full p-4 border rounded-lg center mt-3')}
+          onPress={handleChooseImage}
+        >
+          <Text style={styleClass('text-md text-center text-gray-700')}>
+            {image ? 'Ubah Gambar' : 'Pilih Gambar'}
+          </Text>
+        </TouchableOpacity>
+
+        {/* Preview Gambar */}
+        {image && (
+          <View style={styleClass('w-full mt-3 mb-5')}>
+            <Text style={styleClass('text-gray-600 text-sm mb-3')}>
+              Preview Gambar:
+            </Text>
+            <FastImage
+              source={{uri: image}}
+              style={{
+                width: windowWidth - 32,
+                height: windowWidth - 32,
+                borderRadius: 8,
+              }}
+              resizeMode={FastImage.resizeMode.cover}
+            />
+          </View>
+        )}
+
+        {/* Tombol Simpan */}
+
+        <TouchableOpacity
+          style={styleClass(
+            'bg-aquamarine-500 w-full rounded-lg center p-4 mt-4 mb-5',
+          )}
+          onPress={handleUpdateData}
+        >
+          <Text style={styleClass('text-white text-md font-semibold')}>
+            {saving ? 'Menyimpan...' : 'Perbarui'}
+          </Text>
+        </TouchableOpacity>
+        <View style={{height: 20}}></View>
+      </ScrollView>
+
+      <Modal
+        transparent={true}
+        visible={saveFailed || saving}
+        animationType="fade"
       >
-        <Text style={styles.saveButtonText}>
-          {saving ? 'Menyimpan...' : 'Perbarui'}
-        </Text>
-      </TouchableOpacity>
+        <Pressable
+          onPress={() => {
+            setSaveFailed(false);
+            setSaving(false);
+          }}
+          style={{
+            flex: 1,
+            backgroundColor: 'rgba(0,0,0,0.3)',
+            justifyContent: 'center',
+            alignItems: 'center',
+            zIndex: 1000,
+          }}
+        >
+          <Pressable
+            onPress={e => e.stopPropagation()}
+            style={{
+              borderWidth: 0.5,
+              borderColor: '#dedede',
+              borderRadius: 10,
+              backgroundColor: 'white',
+              padding: 20,
+            }}
+          >
+            <FastImage
+              source={
+                saving
+                  ? require('../Assets/icon/ic_loader.gif')
+                  : saveFailed
+                  ? require('../Assets/icon/ic_failed.gif')
+                  : null
+              }
+              style={{
+                width: 100,
+                height: 100,
+              }}
+            />
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    padding: 20,
-
-    justifyContent: 'center',
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#73BBA3',
-    marginBottom: 20,
-    textAlign: 'center',
-  },
-  input: {
-    height: 50,
-    borderColor: '#ddd',
-    borderWidth: 1,
-    borderRadius: 10,
-    paddingHorizontal: 10,
-    marginBottom: 10,
-  },
-  passwordContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderColor: '#ddd',
-    borderWidth: 1,
-    borderRadius: 10,
-    paddingHorizontal: 10,
-    marginBottom: 10,
-  },
-  passwordInput: {
-    flex: 1,
-    height: 50,
-  },
-  button: {
-    padding: 15,
-    backgroundColor: '#e0f2f1',
-    borderRadius: 10,
-    marginBottom: 10,
-    alignItems: 'center',
-  },
-  buttonText: {
-    color: '#73BBA3',
-    fontWeight: 'bold',
-  },
-  imagePreviewContainer: {
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  previewText: {
-    color: '#757575',
-    marginBottom: 5,
-  },
-  imagePreview: {
-    width: 100,
-    height: 100,
-    borderRadius: 10,
-  },
-  saveButton: {
-    padding: 15,
-
-    borderRadius: 10,
-    alignItems: 'center',
-  },
-  saveButtonText: {
-    color: 'white',
-    fontWeight: 'bold',
-  },
-});

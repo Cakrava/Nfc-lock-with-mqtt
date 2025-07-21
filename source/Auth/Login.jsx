@@ -59,7 +59,7 @@ export default function Login() {
           value={DataId}
           onChangeText={setIdNumbber}
           style={styleClass('w-full  text-gray-900 text-xl  p-3')}
-          placeholder="Id Number"
+          placeholder="ID atau Username"
         />
       </View>
       {alertId && (

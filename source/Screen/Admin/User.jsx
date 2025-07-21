@@ -27,14 +27,14 @@ import {sendLog} from '../../Config/firebaseHelper';
 
 const {width, height} = Dimensions.get('window');
 
-export default function Anggota() {
+export default function User() {
   const [anggotaList, setAnggotaList] = useState([]);
   const [rbContent, setRbContent] = useState('');
   const navigation = useNavigation();
   const [selectedId, setSelectedId] = useState(null);
   const bottomSheetRef = useRef();
   const [lebar, setLebar] = useState(width * 0.8);
-  const [tinggi, setTinggi] = useState(height * 0.8);
+  const [tinggi, setTinggi] = useState(height);
   const [loading, setLoading] = useState(true);
   const [isEmpty, setIsEmpti] = useState(true);
   const {loginId} = useGlobalStateContext();

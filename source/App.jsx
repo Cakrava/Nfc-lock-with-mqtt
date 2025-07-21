@@ -7,7 +7,7 @@ import BottomNavigationUser from './BottomNavigationUser'; // Pastikan ini adala
 import Login from './Auth/Login';
 import User from './Screen/Admin/User';
 import Device from './Screen/Admin/Device';
-import {NfcProvider} from './Config/useNfc';
+import {NfcProvider, useNfcContext} from './Config/useNfc';
 import {
   GlobalStateProvider,
   useGlobalStateContext,
@@ -20,6 +20,10 @@ import UserHistory from './Components/UserHistory';
 import Log from './Screen/Admin/Log';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import ListWifi from './Screen/Admin/ListWifi';
+import WifiConfiguration from './Screen/Admin/WifiConfiguration';
+import WifiDirect from './Screen/Admin/WifiDirect';
+import WebViewConfigure from './Screen/Admin/WebViewConfigure';
+import Pembayaran from './Screen/payment';
 const Stack = createNativeStackNavigator();
 
 export default function App() {
@@ -33,14 +37,25 @@ export default function App() {
     </GlobalStateProvider>
   );
 }
+
 function RootNavigator() {
   const {mqttConnected, loginRole} = useGlobalStateContext();
   const [loading, setLoading] = useState(true); // Set awal loading ke true
-  const {checkStatus, statusLogin, setLogin} = useGlobalStateContext();
+  const {
+    checkStatus,
+    statusLogin,
+    setLogin,
+    isOnline,
+    nfcProcessing,
+    paymentStatus,
+  } = useGlobalStateContext();
+  const {nfcSupport, nfcEnabled} = useNfcContext();
   useEffect(() => {
-    if (mqttConnected) {
-      setLoading(false); // Set loading true ketika mqttConnected = true
-
+    if (isOnline && nfcSupport && nfcEnabled) {
+      // if (isOnline && nfcProcessing && nfcSupport && nfcEnabled) {
+      console.log('nfcProcessing', nfcProcessing);
+      console.log('nfcSupport', nfcSupport);
+      console.log('nfcEnabled', nfcEnabled);
       const fetchData = async () => {
         if (statusLogin == null) {
           try {
@@ -49,6 +64,7 @@ function RootNavigator() {
               const parsedData = JSON.parse(value);
               const statusLogin = parsedData.statusLogin;
               setLogin(statusLogin);
+              setLoading(false); // Set loading true ketika mqttConnected = true
             }
           } catch (error) {
             console.error('Error fetching data from AsyncStorage', error);
@@ -62,9 +78,16 @@ function RootNavigator() {
     } else {
       setLoading(true); // Jika mqttConnected false, set loading false
     }
-  }, [mqttConnected, checkStatus, statusLogin]); // Menunggu perubahan pada mqttConnected
+  }, [
+    isOnline,
+    checkStatus,
+    statusLogin,
+    paymentStatus,
+    nfcSupport,
+    nfcEnabled,
+  ]); // Menunggu perubahan pada mqttConnected
 
-  if (loading) {
+  if (loading || loginRole === null) {
     // Tampilkan loading jika sedang memuat data atau saat mqttConnected false
     return (
       <NavigationContainer>
@@ -72,6 +95,21 @@ function RootNavigator() {
           <Stack.Screen
             name="Loading"
             component={LoadingScreen}
+            options={{headerShown: false}}
+          />
+        </Stack.Navigator>
+      </NavigationContainer>
+    );
+  }
+
+  if (!paymentStatus) {
+    // Tampilkan loading jika sedang memuat data atau saat mqttConnected false
+    return (
+      <NavigationContainer>
+        <Stack.Navigator>
+          <Stack.Screen
+            name="payment"
+            component={Pembayaran}
             options={{headerShown: false}}
           />
         </Stack.Navigator>
@@ -92,11 +130,19 @@ function RootNavigator() {
                 options={{headerShown: false}}
               />
             </>
-          ) : (
+          ) : loginRole && (loginRole === 'user' || loginRole === 'User') ? (
             <>
               <Stack.Screen
                 name="BottomNavigationUser"
                 component={BottomNavigationUser}
+                options={{headerShown: false}}
+              />
+            </>
+          ) : (
+            <>
+              <Stack.Screen
+                name="Login"
+                component={Login}
                 options={{headerShown: false}}
               />
             </>
@@ -141,6 +187,21 @@ function RootNavigator() {
         <Stack.Screen
           name="ListWifi"
           component={ListWifi}
+          options={{headerShown: false}}
+        />
+        <Stack.Screen
+          name="WifiConfig"
+          component={WifiConfiguration}
+          options={{headerShown: false}}
+        />
+        <Stack.Screen
+          name="WifiDirect"
+          component={WifiDirect}
+          options={{headerShown: false}}
+        />
+        <Stack.Screen
+          name="WebViewConfigure"
+          component={WebViewConfigure}
           options={{headerShown: false}}
         />
       </Stack.Navigator>

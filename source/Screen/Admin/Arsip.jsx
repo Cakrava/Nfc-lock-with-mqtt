@@ -8,8 +8,15 @@ import {ChartDevice} from '../../Components/Chart';
 
 export default function Arsip() {
   return (
-    <ScrollView style={styleClass('w-full h-full  bg-gray-200')}>
-      <View style={styleClass('w-full items-center h-full')}>
+    <ScrollView
+      style={[styleClass('w-full h-full'), {backgroundColor: '#F8F9FA'}]}
+    >
+      <View
+        style={[
+          styleClass('w-full items-center h-full'),
+          {backgroundColor: '#F8F9FA'},
+        ]}
+      >
         <View
           style={[
             styleClass(

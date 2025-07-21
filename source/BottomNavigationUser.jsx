@@ -19,7 +19,7 @@ import Home from './Screen/User/Home';
 const width = Dimensions.get('window').width;
 const color = '#66cdaa'; // Warna untuk tab yang aktif
 
-export default function BottomNavigation() {
+export default function BottomNavigationUser() {
   const [selectedTab, setSelectedTab] = useState('home');
   const [lebar, setlebar] = useState(0);
   const [animation] = useState(new Animated.Value(0)); // Animasi transisi tab

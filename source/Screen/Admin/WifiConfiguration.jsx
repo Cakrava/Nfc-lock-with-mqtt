@@ -1,9 +1,9 @@
 import React, {useEffect, useState, useRef} from 'react';
 import {
   StyleSheet,
+  Modal,
   Text,
   View,
-  Modal,
   FlatList,
   TouchableOpacity,
   Dimensions,
@@ -13,7 +13,6 @@ import {
   TextInput,
   Pressable,
   Image,
-  Linking,
   Alert,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
@@ -27,18 +26,15 @@ import LottieView from 'lottie-react-native';
 import FastImage from 'react-native-fast-image';
 import {useGlobalStateContext} from '../../Config/GlobalStateContext';
 
-const {height, width} = Dimensions.get('window');
-
-export default function ListWifi() {
+export default function WifiConfiguration() {
   const nav = useNavigation();
   const [wifiList, setWifiList] = useState([]);
   const [wifiData, setWifiData] = useState([]); // Untuk menyimpan data dari Firebase
   const [isScanning, setIsScanning] = useState(false);
   const bottomSheetRef = useRef();
   const [selectedSSID, setSelectedSSID] = useState('');
+  const [wifiEnabled, setWifiEnabled] = useState(true); // default true biar gak ganggu
 
-  const [lebar, setLebar] = useState(width * 0.8);
-  const [tinggi, setTinggi] = useState(height * 0.8);
   const {loginPassword} = useGlobalStateContext();
   const [connecting, setConnecting] = useState(false);
   const [isFailed, setIsFailed] = useState(false);
@@ -87,6 +83,10 @@ export default function ListWifi() {
       console.error('Gagal mengambil data dari Firebase:', error);
     }
   };
+
+  function closeBottomSheet() {
+    bottomSheetRef.current.close();
+  }
 
   const scanWifi = () => {
     if (isScanning) {
@@ -138,7 +138,6 @@ export default function ListWifi() {
         setIsScanning(false);
       });
   };
-
   useEffect(() => {
     const initialize = async () => {
       await requestLocationPermission();
@@ -174,31 +173,15 @@ export default function ListWifi() {
       .then(() => {
         console.log(`Terhubung ke ${ssid}`);
         setConnected(true);
-        fetch('http://192.168.4.1/message', {
-          method: 'POST',
-          headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({message: 'buka'}),
-        })
-          .then(() => {
-            console.log('Pesan terkirim. Memutuskan koneksi...');
-            setConnecting(false);
-            setConnected(true);
+        setConnecting(false);
 
-            WifiManager.disconnect()
-
-              .then(() => {
-                console.log(`Koneksi dengan ${ssid} diputuskan.`);
-                setChekingInternet(true);
-              })
-              .catch(err => {
-                console.error(`Gagal memutus koneksi dari ${ssid}:`, err);
-              });
-          })
-          .catch(err => {
-            console.warn('Gagal mengirim pesan:', err);
-          });
+        setIsFailed(false);
+        nav.navigate('WebViewConfigure'); // Navigasi ke WebView setelah koneksi sukses
       })
       .catch(err => {
+        setIsFailed(true);
+        setConnecting(false);
+        setConnected(false);
         console.warn('Gagal terhubung ke Wi-Fi:', err);
       });
   };
@@ -253,11 +236,11 @@ export default function ListWifi() {
       setResponse('Password tidak cocok');
     }
   }
-
   const resetState = () => {
     setSelectedSSID(''); // Reset SSID yang dipilih
     setPassword(''); // Hapus input password
     setResponse(''); // Hapus pesan error atau respon
+    setConnecting(false); // Reset status connecting
     setConnecting(false); // Reset status connecting
     setConnected(false); // Reset status connected
     setIsForget(false); // Reset status isForget
@@ -269,7 +252,7 @@ export default function ListWifi() {
         <TouchableOpacity onPress={() => nav.goBack()}>
           <Icon name="arrow-back" size={30} color="white" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Open Device</Text>
+        <Text style={styles.headerTitle}>Configure Device</Text>
       </View>
 
       {isScanning ? (

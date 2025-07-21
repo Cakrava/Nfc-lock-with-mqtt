@@ -10,19 +10,16 @@ import {database} from './firebase';
 import {getClient} from './mqtt';
 import {sendDeviceStatus, sendLog} from './firebaseHelper';
 import {useGlobalStateContext} from './GlobalStateContext';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const DeviceStatusContext = createContext();
 
 export const DeviceStatusProvider = ({children}) => {
   const [DeviceList, setDeviceList] = useState([]);
-  const {totalDevice, setTotalDevice} = useGlobalStateContext(); // State untuk menyimpan total perangkat
+  const {totalDevice, setTotalDevice, mqttConnected} = useGlobalStateContext();
   const [realtimeMessages, setRealtimeMessages] = useState({});
   const [lastMessageTimestamps, setLastMessageTimestamps] = useState({});
+  const [lastDeviceStatuses, setLastDeviceStatuses] = useState({});
   const mqttClient = useRef(null);
-  const {mqttConnected} = useGlobalStateContext();
-  const [status, setStatus] = useState('');
-  const [alamat, setAlamat] = useState('');
 
   // Firebase: Fetch device list
   useEffect(() => {
@@ -34,7 +31,7 @@ export const DeviceStatusProvider = ({children}) => {
         ? Object.keys(data).map(key => ({id: key, ...data[key]}))
         : [];
       setDeviceList(devices);
-      setTotalDevice(devices.length); // Perbarui total perangkat setiap ada perubahan
+      setTotalDevice(devices.length);
     });
 
     return () => unsubscribe();
@@ -43,7 +40,6 @@ export const DeviceStatusProvider = ({children}) => {
   // MQTT: Subscribe and handle messages
   useEffect(() => {
     if (mqttConnected) {
-      console.log('mencoba berlangganan setelah terhubung');
       if (!mqttClient.current) {
         mqttClient.current = getClient();
       }
@@ -52,7 +48,6 @@ export const DeviceStatusProvider = ({children}) => {
         const {topic} = device;
         if (topic) {
           mqttClient.current.subscribe(`${topic}-status`);
-          console.log(`${topic}-status`);
         }
       });
 
@@ -75,12 +70,10 @@ export const DeviceStatusProvider = ({children}) => {
         DeviceList.forEach(device => {
           const {topic} = device;
           if (topic) {
-            mqttClient.current.unsubscribe(topic);
+            mqttClient.current.unsubscribe(`${topic}-status`);
           }
         });
       };
-    } else {
-      console.log('gagal berlangganan ');
     }
   }, [DeviceList, mqttConnected]);
 
@@ -95,7 +88,7 @@ export const DeviceStatusProvider = ({children}) => {
         Object.keys(lastMessageTimestamps).forEach(topic => {
           if (
             lastMessageTimestamps[topic] &&
-            currentTime - lastMessageTimestamps[topic] > 3000
+            currentTime - lastMessageTimestamps[topic] > 7000
           ) {
             updatedMessages[topic] = null;
           }
@@ -103,7 +96,7 @@ export const DeviceStatusProvider = ({children}) => {
 
         return updatedMessages;
       });
-    }, 3000);
+    }, 2000); // Cek setiap 2 detik
 
     return () => clearInterval(interval);
   }, [lastMessageTimestamps]);
@@ -111,36 +104,48 @@ export const DeviceStatusProvider = ({children}) => {
   // Update device status in Firebase
   useEffect(() => {
     if (DeviceList.length > 0) {
+      const updatedStatuses = {...lastDeviceStatuses};
+
       DeviceList.forEach(device => {
         const {topic} = device;
-        const deviceStatus =
-          realtimeMessages[topic + '-status'] == null ? 'offline' : 'online';
-        setStatus(deviceStatus);
-        setAlamat(topic);
-        sendDeviceStatus(topic, deviceStatus);
+        const key = `${topic}-status`;
+        const currentStatus =
+          realtimeMessages[key] == null ? 'offline' : 'online';
+        const previousStatus = lastDeviceStatuses[topic];
+
+        sendDeviceStatus(topic, currentStatus);
+
+        if (previousStatus !== currentStatus) {
+          const logData = `Perangkat ${topic} telah ${currentStatus}`;
+          sendLog(logData);
+          updatedStatuses[topic] = currentStatus;
+        }
       });
+
+      setLastDeviceStatuses(updatedStatuses);
     }
   }, [realtimeMessages, DeviceList]);
 
+  // Fungsi hapus perangkat
   const deleteDevice = async id => {
     try {
-      const deviceRef = ref(database, `Device/${id}`); // Referensi ke path perangkat
-      await remove(deviceRef); // Hapus data dari Firebase
+      const deviceRef = ref(database, `Device/${id}`);
+      await remove(deviceRef);
       console.log(`Device with id ${id} successfully deleted`);
     } catch (error) {
       console.error('Error deleting device:', error);
-      throw error; // Lempar error jika terjadi masalah
+      throw error;
     }
   };
 
-  useEffect(() => {
-    var data = `Perangkat  ${alamat} telah ${status}`;
-    sendLog(data);
-  }, [status, alamat]);
-
   return (
     <DeviceStatusContext.Provider
-      value={{DeviceList, totalDevice, realtimeMessages, deleteDevice}} // Tambahkan totalDevice ke context
+      value={{
+        DeviceList,
+        totalDevice,
+        realtimeMessages,
+        deleteDevice,
+      }}
     >
       {children}
     </DeviceStatusContext.Provider>

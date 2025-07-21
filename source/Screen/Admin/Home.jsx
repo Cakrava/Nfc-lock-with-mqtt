@@ -18,13 +18,17 @@ import ListHistory from '../../Components/ListHistory';
 import Limitasi from '../../Components/Limitasi';
 const color = '#20b2aa';
 export default function Home() {
-  const {loginName, loginImage} = useGlobalStateContext();
+  const {loginName, loginImage, mqttConnected} = useGlobalStateContext();
   useEffect(() => {}, [loginName, loginImage]);
   return (
     <ScrollView style={styleClass('w-full h-full bg-gray-100')}>
       <View
         style={[
-          styleClass('w-full p-4 bg-aquamarine-500 h-auto shadow-sm'),
+          styleClass(
+            `w-full p-4 ${
+              mqttConnected ? 'bg-aquamarine-500' : 'bg-orange-500'
+            } h-auto shadow-sm`,
+          ),
           {borderBottomLeftRadius: 15, borderBottomRightRadius: 15},
         ]}
       >

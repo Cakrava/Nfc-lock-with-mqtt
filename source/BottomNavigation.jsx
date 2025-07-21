@@ -1,3 +1,4 @@
+import React, {useState, useEffect, useCallback} from 'react';
 import {
   StyleSheet,
   Text,
@@ -6,78 +7,135 @@ import {
   Dimensions,
   Animated,
 } from 'react-native';
-import React, {useState, useEffect} from 'react';
-import {styleClass} from './Config/styleClass'; // Pastikan ini sudah terkonfigurasi
-import Icon from 'react-native-vector-icons/Ionicons'; // Import Ionicons
+import Icon from 'react-native-vector-icons/Ionicons';
+import {styleClass} from './Config/styleClass';
 
-import Login from './Auth/Login';
+// Import komponen screen dengan benar
+import HomeScreen from './Screen/Admin/Home';
+import ArchiveScreen from './Screen/Admin/Arsip';
+import ProfileScreen from './Screen/Profile';
 
-import Scan from './Components/Scan';
-import Arsip from './Screen/Admin/Arsip';
-import Profile from './Screen/Profile';
-import Home from './Screen/Admin/Home';
-const width = Dimensions.get('window').width;
-const color = '#66cdaa'; // Warna untuk tab yang aktif
+const {width} = Dimensions.get('window');
+const ACTIVE_TAB_COLOR = '#66cdaa';
+const INACTIVE_TAB_COLOR = 'gray';
 
-export default function BottomNavigation() {
+// Type untuk tab (jika menggunakan TypeScript)
+// type TabType = {
+//   name: string;
+//   label: string;
+//   icon: string;
+//   component: React.ComponentType;
+// };
+
+const TabButton = React.memo(({tab, isActive, onPress}) => {
+  const iconColor = isActive ? ACTIVE_TAB_COLOR : INACTIVE_TAB_COLOR;
+  const textColor = isActive ? ACTIVE_TAB_COLOR : INACTIVE_TAB_COLOR;
+
+  return (
+    <TouchableOpacity
+      style={styles.tabButton}
+      onPress={() => onPress(tab.name)}
+      activeOpacity={0.7}
+    >
+      <Icon name={tab.icon} size={25} color={iconColor} />
+      <Text style={[styles.tabLabel, {color: textColor}]}>{tab.label}</Text>
+    </TouchableOpacity>
+  );
+});
+
+const BottomNavigation = () => {
   const [selectedTab, setSelectedTab] = useState('home');
-  const [lebar, setlebar] = useState(0);
-  const [animation] = useState(new Animated.Value(0)); // Animasi transisi tab
+  const [animation] = useState(new Animated.Value(0));
 
-  // Daftar tab yang akan ditampilkan
+  // Konfigurasi tab
   const tabs = [
-    {name: 'home', label: 'Home', icon: 'home-outline', screen: <Home />},
     {
-      name: 'arsip',
-      label: 'Arsip',
+      name: 'home',
+      label: 'Home',
+      icon: 'home-outline',
+      component: HomeScreen,
+    },
+    {
+      name: 'archive',
+      label: 'Archive',
       icon: 'layers-outline',
-      screen: <Arsip />,
+      component: ArchiveScreen,
     },
     {
       name: 'profile',
       label: 'Profile',
       icon: 'person-outline',
-      screen: <Profile />,
+      component: ProfileScreen,
     },
   ];
 
-  const renderScreen = () => {
-    const activeTab = tabs.find(tab => tab.name === selectedTab);
-    return activeTab ? activeTab.screen : null;
-  };
-
-  useEffect(() => {
-    setlebar(width * 0.5); // Menyesuaikan lebar untuk tombol floating
+  const handleTabPress = useCallback(tabName => {
+    setSelectedTab(tabName);
+    // Tambahkan animasi jika diperlukan
+    Animated.timing(animation, {
+      toValue: tabs.findIndex(tab => tab.name === tabName),
+      duration: 300,
+      useNativeDriver: true,
+    }).start();
   }, []);
 
+  const renderActiveScreen = useCallback(() => {
+    const ActiveScreen = tabs.find(tab => tab.name === selectedTab)?.component;
+    return ActiveScreen ? <ActiveScreen /> : null;
+  }, [selectedTab]);
+
   return (
-    <View style={styleClass('flex-1')}>
-      {/* Content Area: Menampilkan Screen sesuai dengan Tab */}
-      {renderScreen()}
-      <View
-        style={styleClass(
-          'bg-white border-t w-full h-60 absolute bottom-0 flex-row justify-around items-center',
-        )}
-      >
+    <View style={styles.container}>
+      {/* Area Konten Utama */}
+      <View style={styles.contentContainer}>{renderActiveScreen()}</View>
+
+      {/* Tab Navigator */}
+      <View style={styles.tabBarContainer}>
         {tabs.map(tab => (
-          <TouchableOpacity
+          <TabButton
             key={tab.name}
-            style={styleClass('p-3 center')}
-            onPress={() => setSelectedTab(tab.name)}
-          >
-            <Icon
-              name={tab.icon}
-              size={25}
-              color={selectedTab === tab.name ? color : 'gray'}
-            />
-            <Text style={{color: selectedTab === tab.name ? color : 'gray'}}>
-              {tab.label}
-            </Text>
-          </TouchableOpacity>
+            tab={tab}
+            isActive={selectedTab === tab.name}
+            onPress={handleTabPress}
+          />
         ))}
       </View>
     </View>
   );
-}
+};
 
-const styles = StyleSheet.create({});
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#ffffff',
+  },
+  contentContainer: {
+    flex: 1,
+    marginBottom: 60, // Sesuaikan dengan tinggi tab bar
+  },
+  tabBarContainer: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'center',
+    height: 60,
+    backgroundColor: '#ffffff',
+    borderTopWidth: 1,
+    borderTopColor: '#e0e0e0',
+    paddingHorizontal: 10,
+  },
+  tabButton: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 8,
+  },
+  tabLabel: {
+    fontSize: 12,
+    marginTop: 4,
+  },
+});
+
+export default React.memo(BottomNavigation);

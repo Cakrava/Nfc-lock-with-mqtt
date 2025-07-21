@@ -39,6 +39,7 @@ export default function MenuArsip() {
           User History
         </Text>
       </TouchableOpacity>
+
       <TouchableOpacity
         onPress={() => navigation.navigate('Log')}
         style={styleClass(

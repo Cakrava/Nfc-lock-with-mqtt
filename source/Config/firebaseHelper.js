@@ -76,7 +76,9 @@ export function getMyHistory() {
   } = useGlobalStateContext();
 
   useEffect(() => {
-    if (!loginId) return;
+    if (!loginId) {
+      return;
+    }
 
     const historyRef = ref(database, `History/${loginId}`);
 
@@ -109,14 +111,17 @@ export async function getMyData() {
     setLoginId,
     setLoginName,
     setLoginNumber,
+    setPaymentStatus,
+
+    setLoginUsername,
     setLoginRole,
     setLoginImage,
     setLoginPassword,
     tempId,
+    setRefToken,
   } = useGlobalStateContext();
 
   useEffect(() => {
-    // Fungsi async untuk mendapatkan data dari Firebase dan AsyncStorage
     const fetchData = async () => {
       try {
         // Ambil data dari AsyncStorage
@@ -138,6 +143,19 @@ export async function getMyData() {
         } else {
           validId = checkId;
         }
+
+        const paymentStatusRef = ref(database, 'payment/');
+        onValue(paymentStatusRef, snapshot => {
+          const paymentStatus = snapshot.val();
+          if (paymentStatus) {
+            setPaymentStatus(paymentStatus.status === 1);
+            console.log(paymentStatus.ref_token);
+          } else {
+            setPaymentStatus(false);
+            console.log('Status Pembayaran: Tidak Lunas');
+          }
+        });
+
         const dataRef = ref(database, `Anggota/${validId}`); // Ganti dengan ID yang sesuai
         const unsubscribe = onValue(dataRef, snapshot => {
           const value = snapshot.val();
@@ -147,6 +165,7 @@ export async function getMyData() {
             setLoginId(value.id);
             setLoginName(value.name);
             setLoginNumber(value.nomorWhatsapp);
+            setLoginUsername(value.username);
             setLoginRole(value.role);
             setLoginImage(value.imageUrl);
             setLoginPassword(value.password);
@@ -169,7 +188,7 @@ export async function getMyData() {
 }
 
 export function sendMessage(data) {
-  const validatorHelper = ref(database, `validatorHelper/sendMessaage`);
+  const validatorHelper = ref(database, 'validatorHelper/sendMessaage');
   set(validatorHelper, {
     dataSendMessage: data,
   });
@@ -218,7 +237,7 @@ export function getAllHistory() {
   const {setAllHistory, setAllHistoryEmpty} = useGlobalStateContext();
 
   useEffect(() => {
-    const historyRef = ref(database, `AllHistory`);
+    const historyRef = ref(database, 'AllHistory');
 
     const unsubscribe = onValue(
       historyRef,
@@ -259,36 +278,52 @@ export async function handleLogin(
   setStatusLogin,
   setTempId,
 ) {
-  // const navigation = useNavigation();
-
-  // Tampilkan loading atau indikasi jika login sedang diproses
   try {
-    const cekData = ref(database, `Anggota/${DataId}`);
-    const snapshot = await get(cekData);
+    const hanyaAngka = /^[0-9]+$/.test(DataId); // cek full angka
 
-    // Jika data ditemukan di database
-    if (snapshot.exists()) {
-      const existingData = snapshot.val();
-      if (existingData.password === DataPassword) {
-        // Simpan status login di AsyncStorage
+    let foundUser = null;
+    let userId = null;
+
+    if (hanyaAngka) {
+      // Akses langsung via ID
+      const dataRef = ref(database, `Anggota/${DataId}`);
+      const snapshot = await get(dataRef);
+      if (snapshot.exists()) {
+        foundUser = snapshot.val();
+        userId = DataId;
+      }
+    } else {
+      // Cari berdasarkan username
+      const allUsersRef = ref(database, 'Anggota');
+      const snapshot = await get(allUsersRef);
+      if (snapshot.exists()) {
+        const allUsers = snapshot.val();
+        const matchingEntry = Object.entries(allUsers).find(
+          ([key, user]) => user.username === DataId,
+        );
+        if (matchingEntry) {
+          userId = matchingEntry[0];
+          foundUser = matchingEntry[1];
+        }
+      }
+    }
+
+    if (foundUser) {
+      if (foundUser.password === DataPassword) {
         await AsyncStorage.setItem(
           '@user_data',
-          JSON.stringify({statusLogin: 'sukses', checkId: DataId}),
+          JSON.stringify({statusLogin: 'sukses', checkId: userId}),
         );
-        // Arahkan ke BottomNavigation setelah login berhasil
         setStatusLogin(true);
-        setTempId(DataId);
+        setTempId(userId);
         console.log('Berhasil login!');
       } else {
-        // Password salah
         alert('Password atau ID salah!');
       }
     } else {
-      // Akun tidak ditemukan
       alert('Akun tidak ditemukan');
     }
   } catch (error) {
-    // Tangani error jika terjadi masalah saat login
     console.error('Terjadi kesalahan saat login:', error);
   }
 }

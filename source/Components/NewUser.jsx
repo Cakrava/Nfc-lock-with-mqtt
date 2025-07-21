@@ -1,12 +1,17 @@
-import React, {useState} from 'react';
+import React, {useState, useEffect} from 'react';
 import {
   StyleSheet,
   Text,
+  Dimensions,
+  ScrollView,
   View,
+  Modal,
+  Pressable,
   TextInput,
   TouchableOpacity,
   Image,
 } from 'react-native';
+import FastImage from 'react-native-fast-image';
 import Icon from 'react-native-vector-icons/Ionicons';
 import {useNavigation} from '@react-navigation/native';
 import Toast from 'react-native-simple-toast';
@@ -22,6 +27,7 @@ import {ref, set} from 'firebase/database'; // Firebase Realtime Database
 import {styleClass} from '../Config/styleClass';
 import {sendLog} from '../Config/firebaseHelper';
 
+const windowWidth = Dimensions.get('window').width;
 // Fungsi untuk menghasilkan ID acak
 const generateRandomID = () => {
   return Math.floor(10000000 + Math.random() * 90000000).toString();
@@ -44,10 +50,16 @@ export default function NewUser({bottomSheetRef}) {
   const [id, setId] = useState(generateRandomID());
   const [name, setName] = useState('');
   const [nomorWhatsapp, setNomorWhatsapp] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [image, setImage] = useState(null); // URI Gambar
   const [saving, isSaving] = useState(false);
+  const [saveFailed, setSaveFailed] = useState(false);
+
+  useEffect(() => {
+    setUsername(name.toLowerCase().replace(/\s/g, ''));
+  }, [name]);
 
   const handleGeneratePassword = () => {
     setPassword(generateRandomPassword());
@@ -107,6 +119,7 @@ export default function NewUser({bottomSheetRef}) {
       name: name,
       password: password,
       nomorWhatsapp: nomorWhatsapp,
+      username: username,
       role: 'User',
       imageUrl: imageUrl, // URL gambar
     })
@@ -130,79 +143,183 @@ export default function NewUser({bottomSheetRef}) {
   };
 
   return (
-    <View style={styleClass('w-full h-full items-center')}>
-      <TextInput
-        style={styleClass('w-1/9 p-4 border rounded-lg mt-3 text-md')}
-        placeholder="ID"
-        value={id}
-        editable={false}
-      />
-      <TextInput
-        style={styleClass('w-1/9 p-4 border rounded-lg mt-3 text-md')}
-        placeholder="Nama"
-        value={name}
-        onChangeText={setName}
-      />
-      <TextInput
-        style={styleClass('w-1/9 p-4 border rounded-lg mt-3 text-md')}
-        placeholder="Nomor Whatsapp"
-        value={nomorWhatsapp}
-        keyboardType="number-pad"
-        onChangeText={setNomorWhatsapp}
-      />
-      <View
-        style={styleClass(
-          'w-1/9 p-2 border rounded-lg mt-3 flex-row items-center justify-between mb-5',
-        )}
-      >
-        <TextInput
-          style={styleClass('text-md w-1/8')}
-          placeholder="Password"
-          value={password}
-          secureTextEntry={!showPassword}
-          onChangeText={setPassword}
-        />
-        <TouchableOpacity onPress={handleShowPassword}>
-          <Icon
-            name={showPassword ? 'eye-off-outline' : 'eye-outline'}
-            size={20}
-            color="#73BBA3"
-          />
-        </TouchableOpacity>
-        <TouchableOpacity onPress={handleGeneratePassword}>
-          <Icon name="refresh" size={20} color="#73BBA3" />
-        </TouchableOpacity>
-      </View>
+    <View style={styleClass('w-full h-full')}>
+      <ScrollView contentContainerStyle={styleClass('items-center p-3')}>
+        {/* ID */}
 
-      <TouchableOpacity
-        style={styleClass('w-1/9 p-4 border rounded-lg mt-3 center')}
-        onPress={handleChooseImage}
-      >
-        <Text style={styleClass('text-md text-center text-gray-700')}>
-          {image ? 'Ubah Gambar' : 'Pilih Gambar'}
-        </Text>
-      </TouchableOpacity>
-
-      {image && (
-        <View style={styleClass('w-100 h-100 mt-3 mb-5')}>
-          <Text style={styleClass('text-gray-600 text-sm mb-3')}>
-            Preview Gambar:
-          </Text>
-          <Image
-            source={{uri: image}}
-            style={styleClass('w-full h-full rounded-lg ')}
-          />
+        <View
+          style={{
+            width: '100%',
+            borderBottomWidth: 1,
+            borderColor: '#dedede',
+            paddingBottom: 10,
+          }}
+        >
+          <Text style={styleClass('text-2xl text-teal-500')}>Tambah User</Text>
         </View>
-      )}
+        <View style={styleClass('w-1/4 mt-3 mb-1 self-start')}>
+          <Text>ID</Text>
+        </View>
+        <TextInput
+          style={styleClass('w-full p-4 border rounded-lg text-md')}
+          placeholder="ID"
+          value={id}
+          editable={false}
+        />
 
-      <TouchableOpacity
-        style={styleClass('bg-aquamarine-500 w-1/9 rounded-lg center p-4 mt-4')}
-        onPress={handleSaveData}
+        {/* Nama */}
+        <View style={styleClass('w-1/4 mt-3 mb-1 self-start')}>
+          <Text>Nama</Text>
+        </View>
+        <TextInput
+          style={styleClass('w-full p-4 border rounded-lg text-md')}
+          placeholder="e.g. John Smith"
+          placeholderTextColor="#dedede"
+          value={name}
+          onChangeText={setName}
+        />
+
+        {/* Username */}
+        <View style={styleClass('w-1/4 mt-3 mb-1 self-start')}>
+          <Text>Username</Text>
+        </View>
+        <TextInput
+          style={styleClass(
+            'w-full p-4 border rounded-lg text-md text-teal-500',
+          )}
+          placeholder="----------"
+          placeholderTextColor="#dedede"
+          value={username}
+          editable={false}
+        />
+
+        {/* Nomor WhatsApp */}
+        <View style={styleClass('w-1/4 mt-3 mb-1 self-start')}>
+          <Text>Nomor Whatsapp</Text>
+        </View>
+        <TextInput
+          style={styleClass('w-full p-4 border rounded-lg text-md')}
+          placeholder="e.g. 08xxxxxxxxxx"
+          placeholderTextColor="#dedede"
+          value={nomorWhatsapp}
+          keyboardType="number-pad"
+          onChangeText={setNomorWhatsapp}
+        />
+
+        {/* Password */}
+        <View style={styleClass('w-1/4 mt-3 mb-1 self-start')}>
+          <Text>Password</Text>
+        </View>
+        <View
+          style={styleClass(
+            'w-full p-2 border rounded-lg flex-row items-center justify-between mb-5',
+          )}
+        >
+          <TextInput
+            style={styleClass('text-md w-1/8')}
+            placeholder="e.g. password"
+            placeholderTextColor="#dedede"
+            value={password}
+            secureTextEntry={!showPassword}
+            onChangeText={setPassword}
+          />
+          <TouchableOpacity onPress={handleShowPassword}>
+            <Icon
+              name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+              size={20}
+              color="#73BBA3"
+            />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={handleGeneratePassword}>
+            <Icon name="refresh" size={20} color="#73BBA3" />
+          </TouchableOpacity>
+        </View>
+
+        {/* Tombol Pilih Gambar */}
+        <TouchableOpacity
+          style={styleClass('w-full p-4 border rounded-lg center mt-3')}
+          onPress={handleChooseImage}
+        >
+          <Text style={styleClass('text-md text-center text-gray-700')}>
+            {image ? 'Ubah Gambar' : 'Pilih Gambar'}
+          </Text>
+        </TouchableOpacity>
+
+        {/* Preview Gambar */}
+        {image && (
+          <View style={styleClass('w-full mt-3 mb-5')}>
+            <Text style={styleClass('text-gray-600 text-sm mb-3')}>
+              Preview Gambar:
+            </Text>
+            <Image
+              source={{uri: image}}
+              style={{
+                width: windowWidth - 32, // padding 16 kiri-kanan
+                height: windowWidth - 32,
+                borderRadius: 8,
+              }}
+            />
+          </View>
+        )}
+
+        {/* Tombol Simpan */}
+        <TouchableOpacity
+          style={styleClass(
+            'bg-aquamarine-500 w-full rounded-lg center p-4 mt-4 mb-4',
+          )}
+          onPress={handleSaveData}
+        >
+          <Text style={styleClass('text-white text-md font-semibold')}>
+            {saving ? 'Menyimpan..' : 'Simpan'}
+          </Text>
+        </TouchableOpacity>
+      </ScrollView>
+
+      <Modal
+        transparent={true}
+        visible={saveFailed || saving}
+        animationType="fade"
       >
-        <Text style={styleClass('text-white text-md font-semibold')}>
-          {saving ? 'Menyimpan..' : 'Simpan'}
-        </Text>
-      </TouchableOpacity>
+        <Pressable
+          onPress={() => {
+            setSaveFailed(false);
+            isSaving(false);
+          }}
+          style={{
+            flex: 1,
+            backgroundColor: 'rgba(0,0,0,0.3)',
+            justifyContent: 'center',
+            alignItems: 'center',
+            zIndex: 1000,
+          }}
+        >
+          {/* Stop event propagation to prevent modal from closing when pressing the content */}
+          <Pressable
+            onPress={e => e.stopPropagation()}
+            style={{
+              borderWidth: 0.5,
+              borderColor: '#dedede',
+              borderRadius: 10,
+              backgroundColor: 'white',
+              padding: 20,
+            }}
+          >
+            <FastImage
+              source={
+                saving
+                  ? require('../Assets/icon/ic_loader.gif')
+                  : saveFailed
+                  ? require('../Assets/icon/ic_failed.gif')
+                  : null
+              }
+              style={{
+                width: 100,
+                height: 100,
+              }}
+            />
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }

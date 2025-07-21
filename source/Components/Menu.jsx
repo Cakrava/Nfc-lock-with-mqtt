@@ -46,7 +46,7 @@ export default function Menu() {
 
         {/* Door Control Menu */}
         <TouchableOpacity
-          onPress={() => navigation.navigate('ListWifi')}
+          onPress={() => navigation.navigate('WifiDirect')}
           style={styleClass('center w-70 h-100')}
         >
           <Icon

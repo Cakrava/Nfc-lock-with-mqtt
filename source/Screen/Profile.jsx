@@ -20,6 +20,7 @@ export default function Profile() {
     loginImage,
     loginId,
     loginNumber,
+    LoginUsername,
     loginName,
     loginRole,
     setStatusLogin,
@@ -27,9 +28,10 @@ export default function Profile() {
   } = useGlobalStateContext();
   const [selectedId, setSelectedId] = useState(loginId);
   const bottomSheetRef = useRef();
+  const logoutSheetRef = useRef(); // Tambahkan referensi untuk bottom sheet logout
   const {width, height} = Dimensions.get('window');
   const [lebar, setLebar] = useState(width * 0.8);
-  const [tinggi, setTinggi] = useState(height * 0.8);
+  const [tinggi, setTinggi] = useState(height);
   const [id, setId] = useState('');
 
   const [name, setName] = useState('');
@@ -57,14 +59,7 @@ export default function Profile() {
     });
   };
   async function handleLogout() {
-    try {
-      console.log('berhasil logout');
-      setStatusLogin(false);
-      setLogin(null);
-      await AsyncStorage.clear();
-    } catch {
-      console.log('gagal menghapus sesi');
-    }
+    logoutSheetRef.current.open(); // Buka bottom sheet logout
   }
   const closeBottomSheet = () => {
     if (bottomSheetRef.current) {
@@ -126,83 +121,252 @@ export default function Profile() {
   };
 
   return (
-    <View style={styleClass('w-full h-full bg-white   items-center')}>
+    <View style={{flex: 1, backgroundColor: '#F8F9FA', padding: 20}}>
+      {/* Header Grid */}
       <View
         style={[
-          styleClass('w-full h-auto  flex-row mb-5 p-4 bg-aquamarine-500'),
-          {borderBottomLeftRadius: 15, borderBottomRightRadius: 15},
+          styleClass('bg-aquamarine-500 shadow-md'),
+          {
+            flexDirection: 'row',
+            marginBottom: 30,
+            alignItems: 'center',
+            padding: 15,
+            borderRadius: 12,
+            shadowColor: '#CED4DA',
+            shadowOffset: {width: 0, height: 2},
+            shadowOpacity: 0.5,
+            shadowRadius: 3,
+            elevation: 3,
+          },
         ]}
       >
         <Image
           source={{uri: loginImage}}
-          style={[styleClass('w-80 h-80 bg-gray-200   rounded-full border')]}
+          style={{
+            width: 80,
+            height: 80,
+            borderRadius: 10,
+            backgroundColor: '#E9ECEF',
+            marginRight: 20,
+          }}
         />
-        <View style={styleClass('ml-5')}>
-          <Text style={styleClass('text-white font-semibold text-2xl')}>
+        <View style={[{flex: 1}]}>
+          <Text style={{fontSize: 26, fontWeight: '600', color: 'white'}}>
             {loginName}
           </Text>
-          <Text style={styleClass('text-white text-sm')}>{loginId}</Text>
-          <View
-            style={styleClass('p-1 px-2 bg-orange-500 rounded-sm mt-5 center')}
-          >
-            <Text style={styleClass('text-white font-semibold text-sm')}>
-              {loginId}
-            </Text>
-          </View>
+          <Text style={{fontSize: 16, color: 'white'}}>{loginRole}</Text>
         </View>
       </View>
+
+      {/* Grid Info */}
+      <View
+        style={{
+          flexDirection: 'row',
+          flexWrap: 'wrap',
+          justifyContent: 'space-between',
+        }}
+      >
+        {/* Item Grid 1 */}
+        <View
+          style={[
+            {
+              width: '48%',
+              backgroundColor: '#FFFFFF',
+              padding: 15,
+              borderRadius: 8,
+              marginBottom: 15,
+              shadowColor: '#DEE2E6',
+              shadowOffset: {width: 0, height: 1},
+              shadowOpacity: 0.7,
+              shadowRadius: 2,
+              elevation: 2,
+            },
+            styleClass('shadow-sm'),
+          ]}
+        >
+          <Text style={{fontSize: 12, color: '#ADB5BD', marginBottom: 5}}>
+            ID PENGGUNA
+          </Text>
+          <Text style={{fontSize: 16, color: '#495057', fontWeight: '500'}}>
+            {loginId}
+          </Text>
+        </View>
+        {/* Item Grid 2 */}
+        <View
+          style={[
+            {
+              width: '48%',
+              backgroundColor: '#FFFFFF',
+              padding: 15,
+              borderRadius: 8,
+              marginBottom: 15,
+              shadowColor: '#DEE2E6',
+              shadowOffset: {width: 0, height: 1},
+              shadowOpacity: 0.7,
+              shadowRadius: 2,
+              elevation: 2,
+            },
+            styleClass('shadow-sm'),
+          ]}
+        >
+          <Text style={{fontSize: 12, color: '#ADB5BD', marginBottom: 5}}>
+            USERNAME
+          </Text>
+          <Text style={{fontSize: 16, color: '#495057', fontWeight: '500'}}>
+            {LoginUsername}
+          </Text>
+        </View>
+        {/* Item Grid 3 */}
+        <View
+          style={[
+            {
+              width: '100%',
+              backgroundColor: '#FFFFFF',
+              padding: 15,
+              borderRadius: 8,
+              marginBottom: 25,
+              shadowColor: '#DEE2E6',
+              shadowOffset: {width: 0, height: 1},
+              shadowOpacity: 0.7,
+              shadowRadius: 2,
+              elevation: 2,
+            },
+            styleClass('shadow-sm'),
+          ]}
+        >
+          <Text style={{fontSize: 12, color: '#ADB5BD', marginBottom: 5}}>
+            WHATSAPP
+          </Text>
+          <Text style={{fontSize: 16, color: '#495057', fontWeight: '500'}}>
+            {loginNumber}
+          </Text>
+        </View>
+      </View>
+
+      {/* Tombol Aksi */}
       <TouchableOpacity
         onPress={() => {
           bottomSheetRef.current.open();
         }}
-        style={styleClass(
-          'w-1/9 px-3 mt-5 border-gray-300  items-center flex-row border-b-1',
-        )}
+        style={{
+          backgroundColor: '#E9ECEF',
+          paddingVertical: 15,
+          borderRadius: 8,
+          alignItems: 'center',
+          marginBottom: 12,
+        }}
       >
-        <Icon
-          name="create-outline"
-          size={30}
-          color={'gray'}
-          style={styleClass('mb-4')}
-        />
-        <Text style={styleClass(' mb-4 text-xl ml-3')}>Atur ulang profile</Text>
+        <Text style={{color: '#495057', fontSize: 16, fontWeight: '500'}}>
+          Atur ulang profile
+        </Text>
       </TouchableOpacity>
       <TouchableOpacity
         onPress={handleLogout}
-        style={styleClass(
-          'w-1/9 px-3 mt-5 border-gray-300  items-center flex-row border-b-1',
-        )}
+        style={{
+          backgroundColor: '#F1AEB5',
+          paddingVertical: 15,
+          borderRadius: 8,
+          alignItems: 'center',
+        }}
       >
-        <Icon
-          name="log-out-outline"
-          size={30}
-          color={'red'}
-          style={styleClass('mb-4')}
-        />
-        <Text style={styleClass(' mb-4 text-red-500 text-xl ml-3')}>
+        <Text style={{color: '#D94854', fontSize: 16, fontWeight: '500'}}>
           Keluar
         </Text>
       </TouchableOpacity>
 
       <RBSheet
-        draggable={true}
-        closeOnDrag={true}
         ref={bottomSheetRef}
         height={tinggi}
+        draggable={true}
         customStyles={{
+          wrapper: {backgroundColor: 'rgba(200, 200, 200, 0.4)'},
+          draggableIcon: {backgroundColor: '#ADB5BD'},
           container: {
-            backgroundColor: '#fff',
-            borderTopRightRadius: 10,
-            borderTopLeftRadius: 10,
+            backgroundColor: '#FFFFFF',
+            borderTopLeftRadius: 15,
+            borderTopRightRadius: 15,
+            padding: 10,
+            borderWidth: 1,
+            borderColor: '#F1F3F5',
           },
         }}
       >
-        <View style={styleClass('w-full p-3')}>
-          <Text style={styleClass('text-3xl font-semibold text-teal-500')}>
-            Atur ulang profile
-          </Text>
-        </View>
+        <View style={{padding: 15, alignItems: 'center'}}></View>
         <EditUser id={selectedId} bottomSheetRef={bottomSheetRef} />
+      </RBSheet>
+
+      <RBSheet
+        ref={logoutSheetRef}
+        draggable={true}
+        customStyles={{
+          wrapper: {backgroundColor: 'rgba(200, 200, 200, 0.4)'},
+          draggableIcon: {backgroundColor: '#ADB5BD'},
+          container: {
+            backgroundColor: '#FFFFFF',
+            borderTopLeftRadius: 15,
+            borderTopRightRadius: 15,
+            padding: 10,
+            borderWidth: 1,
+            borderColor: '#F1F3F5',
+          },
+        }}
+      >
+        <View style={{padding: 15, alignItems: 'center'}}>
+          <Text style={{fontSize: 18, fontWeight: 'bold', color: '#495057'}}>
+            Konfirmasi Logout
+          </Text>
+          <Text style={{fontSize: 14, color: '#495057', marginTop: 10}}>
+            Apakah Anda yakin ingin logout?
+          </Text>
+          <View
+            style={{
+              flexDirection: 'row',
+              justifyContent: 'space-between',
+              marginTop: 20,
+            }}
+          >
+            <TouchableOpacity
+              onPress={() => logoutSheetRef.current.close()}
+              style={{
+                backgroundColor: '#E9ECEF',
+                paddingVertical: 10,
+                paddingHorizontal: 20,
+                borderRadius: 8,
+                alignItems: 'center',
+                margin: 5,
+              }}
+            >
+              <Text style={{color: '#495057', fontSize: 16, fontWeight: '500'}}>
+                Batal
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={async () => {
+                try {
+                  console.log('berhasil logout');
+                  setStatusLogin(false);
+                  setLogin(null);
+                  await AsyncStorage.clear();
+                  logoutSheetRef.current.close();
+                } catch {
+                  console.log('gagal menghapus sesi');
+                }
+              }}
+              style={{
+                margin: 5,
+                backgroundColor: '#F1AEB5',
+                paddingVertical: 10,
+                paddingHorizontal: 20,
+                borderRadius: 8,
+                alignItems: 'center',
+              }}
+            >
+              <Text style={{color: '#D94854', fontSize: 16, fontWeight: '500'}}>
+                Logout
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
       </RBSheet>
     </View>
   );

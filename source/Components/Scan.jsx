@@ -1,15 +1,21 @@
-import {StyleSheet, Text, View} from 'react-native';
+import {StyleSheet, Text, TouchableOpacity, View} from 'react-native';
 import React, {useState, useEffect} from 'react';
 import FastImage from 'react-native-fast-image';
 import {styleClass} from '../Config/styleClass';
 import {useNfcContext} from '../Config/useNfc';
 import {useGlobalStateContext} from '../Config/GlobalStateContext';
 
+import Icon from 'react-native-vector-icons/Ionicons';
 export default function Scan() {
   const {pesan, setPesan} = useNfcContext();
   const {aktif, setAktif} = useNfcContext();
   const {isSuccess, setIsSuccess} = useNfcContext();
-  const {mqttConnected, setMqttConnect, isOnline} = useGlobalStateContext();
+  const {
+    mqttConnected,
+    setMqttConnect,
+    isOnline,
+    checkInternetConnection,
+  } = useGlobalStateContext();
   const {isInvalid, setIsInvalid} = useNfcContext();
   const [statusKoneksi, setStatusKoneksi] = useState('');
   useEffect(() => {
@@ -21,6 +27,17 @@ export default function Scan() {
       setStatusKoneksi('Disconnect');
     }
   }, [mqttConnected, isOnline, statusKoneksi]);
+
+  useEffect(() => {
+    if (!mqttConnected) {
+      handlerReconectNetwork();
+    }
+  }, [mqttConnected]);
+
+  function handlerReconectNetwork() {
+    console.log('triger koneksi ulang di klik');
+    checkInternetConnection();
+  }
 
   return (
     <View>
@@ -57,15 +74,30 @@ export default function Scan() {
         ></FastImage>
       </View>
       <View
-        style={styleClass(
-          `w-auto px-3 py-2 rounded-lg mt-4   ${
-            statusKoneksi == 'Connected' ? 'bg-green-500 ' : 'bg-orange-500 '
-          }`,
-        )}
+        style={[
+          styleClass(
+            `w-auto px-3 py-2 rounded-lg mt-4   ${
+              statusKoneksi == 'Connected' ? 'bg-green-500 ' : 'bg-orange-500 '
+            }`,
+          ),
+          {flexDirection: 'row', justifyContent: 'space-between'},
+        ]}
       >
-        <Text style={styleClass('text-md text-white font-bold ')}>
+        <Text style={styleClass('text-md text-white font-bold  ')}>
           {statusKoneksi}
         </Text>
+
+        {!mqttConnected && (
+          <TouchableOpacity
+            onPress={handlerReconectNetwork}
+            style={{flexDirection: 'row', alignItems: 'center'}}
+          >
+            <Icon name="refresh" color={'white'} size={20}></Icon>
+            <Text style={styleClass('text-md text-white font-bold ml-2 ')}>
+              Reconect
+            </Text>
+          </TouchableOpacity>
+        )}
       </View>
     </View>
   );

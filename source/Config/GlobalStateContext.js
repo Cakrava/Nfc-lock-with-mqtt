@@ -6,14 +6,16 @@ const GlobalStateContext = createContext();
 export const useGlobalStateContext = () => useContext(GlobalStateContext);
 
 export const GlobalStateProvider = ({children}) => {
+  const [nfcProcessing, setNfcProcessing] = useState(false);
   const [loginId, setLoginId] = useState(null);
   const [loginName, setLoginName] = useState('');
   const [loginNumber, setLoginNumber] = useState('');
+  const [LoginUsername, setLoginUsername] = useState('');
   const [loginRole, setLoginRole] = useState('');
   const [loginImage, setLoginImage] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
   const [mqttConnected, setMqttConnect] = useState(false);
-  const [isOnline, setIsOnline] = useState(null);
+  const [isOnline, setIsOnline] = useState(false);
   const [myHistory, setMyhistory] = useState([]);
   const [myHistoryEmpty, setMyHistoryEmpty] = useState(true);
   const [allHistory, setAllHistory] = useState([]);
@@ -23,36 +25,56 @@ export const GlobalStateProvider = ({children}) => {
   const [statusLogin, setLogin] = useState(null);
   const [refrashMyData, setRefreshMyData] = useState(null);
   const [totalDevice, setTotalDevice] = useState(null);
+  const [paymentStatus, setPaymentStatus] = useState(true);
+  const [chekingInternet, setChekingInternet] = useState(true);
+  const [attempt, setAttempt] = useState(0);
 
   const checkInternetConnection = async () => {
     try {
+      console.log(
+        'Melakukan cek koneksi, percobaan ke-',
+        attempt + 1,
+        'dan isOnline',
+        isOnline,
+      );
       const response = await fetch('https://8.8.8.8', {
-        method: 'HEAD', // Request tipe HEAD untuk cek cepat
+        method: 'HEAD',
         cache: 'no-cache',
       });
 
       if (response.ok) {
-        setIsOnline(true); // Koneksi berhasil
-        console.log('Koneksi Google berhasil');
-        connectMQTT(setMqttConnect); // Rekoneksi MQTT hanya jika ping sukses
+        setIsOnline(true);
+        connectMQTT(setMqttConnect);
+        setAttempt(0); // reset percobaan jika sukses
       } else {
-        setIsOnline(false); // Koneksi gagal
-        console.log('Koneksi tidak berhasil (respons tidak OK).');
+        throw new Error('Response tidak OK');
       }
     } catch (error) {
-      setIsOnline(false); // Tangkap error jika tidak ada koneksi
-      console.log('Tidak ada koneksi internet.');
+      if (attempt < 1) {
+        // coba ulang 1 kali lagi
+        setAttempt(prev => prev + 1);
+        setTimeout(checkInternetConnection, 1000); // coba ulang setelah 1 detik
+      } else {
+        // setelah 2 kali gagal baru set false
+        setIsOnline(false);
+        setAttempt(0); // reset percobaan
+        console.log('Tidak ada koneksi internet setelah 2 kali percobaan.');
+      }
     }
   };
 
   useEffect(() => {
-    // Interval untuk cek koneksi setiap 3 detik
-    const interval = setInterval(() => {
-      checkInternetConnection(); // Panggil fungsi cek koneksi
-    }, 3000); // Interval 3 detik
+    if (chekingInternet) {
+      setIsOnline(true); // sementara anggap online dulu pas mulai cek
 
-    return () => clearInterval(interval); // Hentikan interval saat komponen dilepas
-  }, []);
+      setAttempt(0);
+      setTimeout(checkInternetConnection, 3000);
+    } else {
+      setIsOnline(true);
+      setAttempt(0);
+      console.log('Mode cek internet dimatikan, status tetap online.');
+    }
+  }, [chekingInternet]);
 
   return (
     <GlobalStateContext.Provider
@@ -63,6 +85,8 @@ export const GlobalStateProvider = ({children}) => {
         loginName,
         setLoginName,
         loginNumber,
+        LoginUsername,
+        setLoginUsername,
         setLoginNumber,
         loginRole,
         setLoginRole,
@@ -90,6 +114,13 @@ export const GlobalStateProvider = ({children}) => {
         setRefreshMyData,
         totalDevice,
         setTotalDevice,
+        paymentStatus,
+        setPaymentStatus,
+        chekingInternet,
+        setChekingInternet,
+        nfcProcessing,
+        setNfcProcessing,
+        checkInternetConnection,
       }}
     >
       {children}
