@@ -13,18 +13,12 @@ import {
 import FastImage from 'react-native-fast-image';
 import Icon from 'react-native-vector-icons/Ionicons';
 import {launchImageLibrary} from 'react-native-image-picker';
-import {
-  getStorage,
-  ref as storageRef,
-  uploadBytes,
-  getDownloadURL,
-} from 'firebase/storage';
 import {database} from '../../source/Config/firebase';
 import {ref, update, onValue} from 'firebase/database';
 import Toast from 'react-native-simple-toast';
 import {styleClass} from '../Config/styleClass';
 import {useGlobalStateContext} from '../Config/GlobalStateContext';
-
+import {apiUrl} from '../../source/Config/firebase';
 const windowWidth = Dimensions.get('window').width;
 
 export default function EditUser({id, bottomSheetRef}) {
@@ -32,7 +26,7 @@ export default function EditUser({id, bottomSheetRef}) {
   const [nomorWhatsapp, setNomorWhatsapp] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [image, setImage] = useState(null);
+  const [image, setImage] = useState(null); // Bisa berupa URI lokal atau URL dari server
   const [saving, setSaving] = useState(false);
   const [saveFailed, setSaveFailed] = useState(false);
   const {setRefreshMyData} = useGlobalStateContext();
@@ -53,7 +47,7 @@ export default function EditUser({id, bottomSheetRef}) {
 
   useEffect(() => {
     const anggotaRef = ref(database, 'Anggota/' + id);
-    onValue(anggotaRef, snapshot => {
+    const unsubscribe = onValue(anggotaRef, snapshot => {
       const data = snapshot.val();
       if (data) {
         setName(data.name);
@@ -62,6 +56,9 @@ export default function EditUser({id, bottomSheetRef}) {
         setImage(data.imageUrl || null);
       }
     });
+
+    // Cleanup listener on unmount
+    return () => unsubscribe();
   }, [id]);
 
   const handleChooseImage = () => {
@@ -71,7 +68,12 @@ export default function EditUser({id, bottomSheetRef}) {
     };
 
     launchImageLibrary(options, response => {
-      if (response.assets && response.assets.length > 0) {
+      if (response.didCancel) {
+        console.log('User cancelled image picker');
+      } else if (response.errorCode) {
+        console.log('ImagePicker Error: ', response.errorMessage);
+      } else if (response.assets && response.assets.length > 0) {
+        // Simpan URI gambar lokal, preview akan otomatis update
         setImage(response.assets[0].uri);
       }
     });
@@ -83,35 +85,54 @@ export default function EditUser({id, bottomSheetRef}) {
       return;
     }
 
-    let imageUrl = image;
+    setSaving(true);
+    let imageUrl = image; // Default ke gambar yang ada
 
+    // Cek jika gambar adalah URI lokal baru (bukan URL dari internet)
     if (image && !image.startsWith('https://')) {
       try {
-        setSaving(true);
-        const storage = getStorage();
-        const imageName = `images/${id}.jpg`;
-        const storageReference = storageRef(storage, imageName);
+        const formData = new FormData();
+        formData.append('id', id);
+        formData.append('image', {
+          uri: image,
+          type: 'image/jpeg',
+          name: `${id}.jpg`,
+        });
 
-        const response = await fetch(image);
-        const blob = await response.blob();
-        await uploadBytes(storageReference, blob);
+        const response = await fetch(`${apiUrl}upload`, {
+          method: 'POST',
+          body: formData,
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
+        });
 
-        imageUrl = await getDownloadURL(storageReference);
+        if (response.ok) {
+          imageUrl = `${apiUrl}images/${id}`;
+        } else {
+          const errorResponse = await response.text();
+          console.error('Image upload failed:', errorResponse);
+          alert('Gagal memperbarui gambar!');
+          setSaving(false);
+          setSaveFailed(true);
+          return;
+        }
       } catch (error) {
         console.error('Error uploading image:', error);
+        alert('Gagal memperbarui gambar!');
         setSaving(false);
         setSaveFailed(true);
         return;
       }
     }
 
+    // Lanjutkan update data ke Firebase
     const anggotaRef = ref(database, 'Anggota/' + id);
-
     update(anggotaRef, {
       name: name,
       password: password,
       nomorWhatsapp: nomorWhatsapp,
-      imageUrl: imageUrl,
+      imageUrl: imageUrl, // Gunakan URL baru atau URL lama
     })
       .then(() => {
         Toast.show('Berhasil Memperbarui Data!', Toast.LONG);
@@ -123,13 +144,14 @@ export default function EditUser({id, bottomSheetRef}) {
         console.error('Error updating data:', error);
         setSaving(false);
         setSaveFailed(true);
+        alert('Gagal memperbarui data!');
       });
   };
 
   return (
     <View style={styleClass('w-full h-full')}>
       <ScrollView contentContainerStyle={styleClass('items-center p-3')}>
-        {/* ID */}
+        {/* Header */}
         <View
           style={{
             width: '100%',
@@ -142,6 +164,8 @@ export default function EditUser({id, bottomSheetRef}) {
             Perbarui Profile
           </Text>
         </View>
+
+        {/* ID */}
         <View style={styleClass('w-1/4 mt-3 mb-1 self-start')}>
           <Text>ID</Text>
         </View>
@@ -221,7 +245,7 @@ export default function EditUser({id, bottomSheetRef}) {
               Preview Gambar:
             </Text>
             <FastImage
-              source={{uri: image}}
+              source={{uri: image, priority: FastImage.priority.high}}
               style={{
                 width: windowWidth - 32,
                 height: windowWidth - 32,
@@ -233,7 +257,6 @@ export default function EditUser({id, bottomSheetRef}) {
         )}
 
         {/* Tombol Simpan */}
-
         <TouchableOpacity
           style={styleClass(
             'bg-aquamarine-500 w-full rounded-lg center p-4 mt-4 mb-5',
@@ -247,6 +270,7 @@ export default function EditUser({id, bottomSheetRef}) {
         <View style={{height: 20}}></View>
       </ScrollView>
 
+      {/* Modal Loading/Failed */}
       <Modal
         transparent={true}
         visible={saveFailed || saving}

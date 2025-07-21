@@ -16,17 +16,11 @@ import Icon from 'react-native-vector-icons/Ionicons';
 import {useNavigation} from '@react-navigation/native';
 import Toast from 'react-native-simple-toast';
 import {launchImageLibrary} from 'react-native-image-picker';
-import {
-  getStorage,
-  ref as storageRef,
-  uploadBytes,
-  getDownloadURL,
-} from 'firebase/storage';
 import {database} from '../../source/Config/firebase'; // Firebase Realtime Database Config
 import {ref, set} from 'firebase/database'; // Firebase Realtime Database
 import {styleClass} from '../Config/styleClass';
 import {sendLog} from '../Config/firebaseHelper';
-
+import {apiUrl} from '../../source/Config/firebase';
 const windowWidth = Dimensions.get('window').width;
 // Fungsi untuk menghasilkan ID acak
 const generateRandomID = () => {
@@ -76,7 +70,11 @@ export default function NewUser({bottomSheetRef}) {
     };
 
     launchImageLibrary(options, response => {
-      if (response.assets && response.assets.length > 0) {
+      if (response.didCancel) {
+        console.log('User cancelled image picker');
+      } else if (response.errorCode) {
+        console.log('ImagePicker Error: ', response.errorMessage);
+      } else if (response.assets && response.assets.length > 0) {
         setImage(response.assets[0].uri); // Simpan URI gambar
       }
     });
@@ -88,30 +86,48 @@ export default function NewUser({bottomSheetRef}) {
       return;
     }
 
+    isSaving(true);
     let imageUrl = null;
 
+    // Jika ada gambar yang dipilih, unggah terlebih dahulu
     if (image) {
       try {
-        isSaving(true);
-        const storage = getStorage();
-        const imageName = `images/${id}.jpg`;
-        const storageReference = storageRef(storage, imageName);
+        const formData = new FormData();
+        formData.append('id', id);
+        formData.append('image', {
+          uri: image,
+          type: 'image/jpeg',
+          name: `${id}.jpg`,
+        });
 
-        // Upload file ke Firebase Storage
-        const response = await fetch(image);
-        const blob = await response.blob();
-        await uploadBytes(storageReference, blob);
+        console.log(`mencoba link ${apiUrl}`);
+        const response = await fetch(`${apiUrl}upload`, {
+          method: 'POST',
+          body: formData,
+        });
 
-        // Dapatkan URL gambar
-        imageUrl = await getDownloadURL(storageReference);
+        if (response.ok) {
+          // Jika unggah berhasil, gunakan URL dari endpoint baru
+          imageUrl = `${apiUrl}images/${id}`;
+        } else {
+          // Jika unggah gagal
+          const errorResponse = await response.text();
+          console.warn('Image upload failed:', errorResponse);
+          alert('Gagal mengunggah gambar!');
+          isSaving(false);
+          setSaveFailed(true);
+          return;
+        }
       } catch (error) {
-        console.error('Error uploading image:', error);
+        console.warn('Error uploading image:', error);
         alert('Gagal mengunggah gambar!');
         isSaving(false);
+        setSaveFailed(true);
         return;
       }
     }
 
+    // Lanjutkan menyimpan data ke Firebase Realtime Database
     const anggotaRef = ref(database, 'Anggota/' + id);
 
     set(anggotaRef, {
@@ -121,7 +137,7 @@ export default function NewUser({bottomSheetRef}) {
       nomorWhatsapp: nomorWhatsapp,
       username: username,
       role: 'User',
-      imageUrl: imageUrl, // URL gambar
+      imageUrl: imageUrl, // URL gambar dari endpoint baru atau null
     })
       .then(() => {
         Toast.show('Berhasil Menambah Data!', Toast.LONG);
@@ -132,6 +148,7 @@ export default function NewUser({bottomSheetRef}) {
       .catch(error => {
         console.error('Error saving data:', error);
         isSaving(false);
+        setSaveFailed(true);
         alert('Gagal menyimpan data!');
       });
   };
@@ -146,7 +163,6 @@ export default function NewUser({bottomSheetRef}) {
     <View style={styleClass('w-full h-full')}>
       <ScrollView contentContainerStyle={styleClass('items-center p-3')}>
         {/* ID */}
-
         <View
           style={{
             width: '100%',

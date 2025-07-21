@@ -3912,6 +3912,7 @@ __metadata:
     "@react-navigation/native-stack": ^7.2.0
     "@types/react": ^18.2.6
     "@types/react-test-renderer": ^18.0.0
+    appwrite: latest
     babel-jest: ^29.6.3
     buffer: ^6.0.3
     chart.js: ^4.4.7
@@ -3934,7 +3935,7 @@ __metadata:
     react-native-fast-image: ^8.6.3
     react-native-fs: ^2.20.0
     react-native-gif: ^1.0.3
-    react-native-image-picker: ^7.2.3
+    react-native-image-picker: ^8.2.1
     react-native-nfc-manager: ^3.16.0
     react-native-pager-view: ^6.2.2
     react-native-paho-mqtt: ^0.1.1
@@ -3948,6 +3949,7 @@ __metadata:
     react-native-svg-charts: ^5.4.0
     react-native-tab-view: ^3.5.2
     react-native-toast-message: ^2.2.1
+    react-native-url-polyfill: ^2.0.0
     react-native-vector-icons: ^10.0.2
     react-native-webview: ^13.12.3
     react-native-wifi-reborn: ^4.13.0
@@ -4114,6 +4116,13 @@ __metadata:
   version: 1.2.7
   resolution: "appdirsjs@npm:1.2.7"
   checksum: 3411b4e31edf8687ad69638ef81b92b4889ad31e527b673a364990c28c99b6b8c3ea81b2b2b636d5b08e166a18706c4464fd8436b298f85384d499ba6b8dc4b7
+  languageName: node
+  linkType: hard
+
+"appwrite@npm:latest":
+  version: 18.1.1
+  resolution: "appwrite@npm:18.1.1"
+  checksum: 49b28636cd9d0b87d80ec514bd2d56dcc2c904f0d1a37773d4f7d8c2f263bbc15d858ba9e50c963f7c4affbda795dedfe1f9b8ac5226bac9eec5f75f150e42ae
   languageName: node
   linkType: hard
 
@@ -4597,7 +4606,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"buffer@npm:^5.5.0":
+"buffer@npm:^5.4.3, buffer@npm:^5.5.0":
   version: 5.7.1
   resolution: "buffer@npm:5.7.1"
   dependencies:
@@ -10088,13 +10097,13 @@ __metadata:
   languageName: node
   linkType: hard
 
-"react-native-image-picker@npm:^7.2.3":
-  version: 7.2.3
-  resolution: "react-native-image-picker@npm:7.2.3"
+"react-native-image-picker@npm:^8.2.1":
+  version: 8.2.1
+  resolution: "react-native-image-picker@npm:8.2.1"
   peerDependencies:
     react: "*"
     react-native: "*"
-  checksum: 96d67516e8e1c1768c593ca1b0a507d5212d8ac5df2610ad9d6f38c188b8d0720966559867849f74b6c19d2500664ce17c907e5fa37ab72487abd363cf493e7d
+  checksum: fc85bc278c0ba5ccef8cbacfce3001e994b34b0895be34e0c884021d2215802c2e553c5e97ff7f21a30e502be60000f90cf9555e9c2a19c71fdc76120d30e158
   languageName: node
   linkType: hard
 
@@ -10273,6 +10282,17 @@ __metadata:
     react: "*"
     react-native: "*"
   checksum: c6b5d231b3b617b3d3d893023673534fe2cc0c5f32bb5fc4aecfe239e9de2fb9f0e9a4086d776e53daf3bc2376dce16dcec13e1b5cf1554dbf51808695fc2441
+  languageName: node
+  linkType: hard
+
+"react-native-url-polyfill@npm:^2.0.0":
+  version: 2.0.0
+  resolution: "react-native-url-polyfill@npm:2.0.0"
+  dependencies:
+    whatwg-url-without-unicode: 8.0.0-3
+  peerDependencies:
+    react-native: "*"
+  checksum: 1a2e1030a62fd093764b5330ce0ff34d72246e581dd2892cddc347d8621931aeb2c9ea3e054960484a1259230e8461e569e1890f1ff452d3c5c0adef70190fc3
   languageName: node
   linkType: hard
 
@@ -11970,6 +11990,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"webidl-conversions@npm:^5.0.0":
+  version: 5.0.0
+  resolution: "webidl-conversions@npm:5.0.0"
+  checksum: ccf1ec2ca7c0b5671e5440ace4a66806ae09c49016ab821481bec0c05b1b82695082dc0a27d1fe9d804d475a408ba0c691e6803fd21be608e710955d4589cd69
+  languageName: node
+  linkType: hard
+
 "websocket-driver@npm:>=0.5.1":
   version: 0.7.4
   resolution: "websocket-driver@npm:0.7.4"
@@ -11992,6 +12019,17 @@ __metadata:
   version: 3.6.20
   resolution: "whatwg-fetch@npm:3.6.20"
   checksum: c58851ea2c4efe5c2235f13450f426824cf0253c1d45da28f45900290ae602a20aff2ab43346f16ec58917d5562e159cd691efa368354b2e82918c2146a519c5
+  languageName: node
+  linkType: hard
+
+"whatwg-url-without-unicode@npm:8.0.0-3":
+  version: 8.0.0-3
+  resolution: "whatwg-url-without-unicode@npm:8.0.0-3"
+  dependencies:
+    buffer: ^5.4.3
+    punycode: ^2.1.1
+    webidl-conversions: ^5.0.0
+  checksum: 1fe266f7161e0bd961087c1254a5a59d1138c3d402064495eed65e7590d9caed5a1d9acfd6e7a1b0bf0431253b0e637ee3e4ffc08387cd60e0b2ddb9d4687a4b
   languageName: node
   linkType: hard
 
