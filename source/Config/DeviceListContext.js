@@ -1,155 +1,82 @@
-import React, {
-  createContext,
-  useContext,
-  useEffect,
-  useState,
-  useRef,
-} from 'react';
+import React, {createContext, useContext, useEffect, useState} from 'react';
 import {ref, onValue, remove} from 'firebase/database';
 import {database} from './firebase';
-import {getClient} from './mqtt';
-import {sendDeviceStatus, sendLog} from './firebaseHelper';
 import {useGlobalStateContext} from './GlobalStateContext';
 
+// 1. Buat Context
 const DeviceStatusContext = createContext();
 
+// 2. Buat Provider
 export const DeviceStatusProvider = ({children}) => {
-  const [DeviceList, setDeviceList] = useState([]);
-  const {totalDevice, setTotalDevice, mqttConnected} = useGlobalStateContext();
-  const [realtimeMessages, setRealtimeMessages] = useState({});
-  const [lastMessageTimestamps, setLastMessageTimestamps] = useState({});
-  const [lastDeviceStatuses, setLastDeviceStatuses] = useState({});
-  const mqttClient = useRef(null);
+  // State yang kita butuhkan HANYA DeviceList
+  const [deviceList, setDeviceList] = useState([]);
+  const {setTotalDevice} = useGlobalStateContext();
 
-  // Firebase: Fetch device list
+  // Efek ini HANYA untuk mengambil dan mendengarkan daftar perangkat dari Firebase
   useEffect(() => {
     const deviceRef = ref(database, 'Device');
 
     const unsubscribe = onValue(deviceRef, snapshot => {
       const data = snapshot.val();
-      const devices = data
-        ? Object.keys(data).map(key => ({id: key, ...data[key]}))
-        : [];
-      setDeviceList(devices);
-      setTotalDevice(devices.length);
+      if (data) {
+        // Logika filter yang sama dengan server untuk mendapatkan data yang bersih dan relevan
+        const allItems = Object.keys(data).map(key => ({
+          id: key,
+          ...data[key],
+        }));
+
+        // Gabungkan data status ke dalam data pengaturan
+        const validDevices = allItems
+          .filter(device => device.topic && device.name) // Ambil hanya entitas pengaturan
+          .map(device => {
+            const statusObject = allItems.find(
+              item => item.id === device.topic,
+            );
+            return {
+              ...device,
+              status: statusObject ? statusObject.status : 'tidak diketahui', // Gabungkan statusnya
+            };
+          });
+
+        setDeviceList(validDevices);
+        setTotalDevice(validDevices.length);
+      } else {
+        setDeviceList([]);
+        setTotalDevice(0);
+      }
     });
 
+    // Cleanup listener saat komponen unmount
     return () => unsubscribe();
-  }, []);
+  }, []); // Hanya berjalan sekali saat komponen dimuat
 
-  // MQTT: Subscribe and handle messages
-  useEffect(() => {
-    if (mqttConnected) {
-      if (!mqttClient.current) {
-        mqttClient.current = getClient();
-      }
-
-      DeviceList.forEach(device => {
-        const {topic} = device;
-        if (topic) {
-          mqttClient.current.subscribe(`${topic}-status`);
-        }
-      });
-
-      mqttClient.current.onMessageArrived = message => {
-        const {destinationName, payloadString} = message;
-        const currentTime = Date.now();
-
-        setRealtimeMessages(prev => ({
-          ...prev,
-          [destinationName]: payloadString,
-        }));
-
-        setLastMessageTimestamps(prev => ({
-          ...prev,
-          [destinationName]: currentTime,
-        }));
-      };
-
-      return () => {
-        DeviceList.forEach(device => {
-          const {topic} = device;
-          if (topic) {
-            mqttClient.current.unsubscribe(`${topic}-status`);
-          }
-        });
-      };
-    }
-  }, [DeviceList, mqttConnected]);
-
-  // Check device status periodically
-  useEffect(() => {
-    const interval = setInterval(() => {
-      const currentTime = Date.now();
-
-      setRealtimeMessages(prevMessages => {
-        const updatedMessages = {...prevMessages};
-
-        Object.keys(lastMessageTimestamps).forEach(topic => {
-          if (
-            lastMessageTimestamps[topic] &&
-            currentTime - lastMessageTimestamps[topic] > 7000
-          ) {
-            updatedMessages[topic] = null;
-          }
-        });
-
-        return updatedMessages;
-      });
-    }, 2000); // Cek setiap 2 detik
-
-    return () => clearInterval(interval);
-  }, [lastMessageTimestamps]);
-
-  // Update device status in Firebase
-  useEffect(() => {
-    if (DeviceList.length > 0) {
-      const updatedStatuses = {...lastDeviceStatuses};
-
-      DeviceList.forEach(device => {
-        const {topic} = device;
-        const key = `${topic}-status`;
-        const currentStatus =
-          realtimeMessages[key] == null ? 'offline' : 'online';
-        const previousStatus = lastDeviceStatuses[topic];
-
-        sendDeviceStatus(topic, currentStatus);
-
-        if (previousStatus !== currentStatus) {
-          const logData = `Perangkat ${topic} telah ${currentStatus}`;
-          sendLog(logData);
-          updatedStatuses[topic] = currentStatus;
-        }
-      });
-
-      setLastDeviceStatuses(updatedStatuses);
-    }
-  }, [realtimeMessages, DeviceList]);
-
-  // Fungsi hapus perangkat
+  // Fungsi hapus perangkat (tidak perlu diubah)
   const deleteDevice = async id => {
+    // Note: Server akan otomatis mendeteksi penghapusan ini dan berhenti memantaunya.
     try {
       const deviceRef = ref(database, `Device/${id}`);
       await remove(deviceRef);
-      console.log(`Device with id ${id} successfully deleted`);
+      console.log(`Device dengan id ${id} berhasil dihapus`);
     } catch (error) {
-      console.error('Error deleting device:', error);
-      throw error;
+      console.error('Error menghapus perangkat:', error);
+      throw error; // Lempar error agar bisa ditangkap di UI
     }
   };
 
+  // Nilai yang disediakan ke komponen anak
+  // Perhatikan, tidak ada lagi realtimeMessages atau logika MQTT
+  const value = {
+    deviceList,
+    totalDevice: deviceList.length, // Lebih akurat dihitung langsung dari state
+    deleteDevice,
+  };
+
   return (
-    <DeviceStatusContext.Provider
-      value={{
-        DeviceList,
-        totalDevice,
-        realtimeMessages,
-        deleteDevice,
-      }}
-    >
+    <DeviceStatusContext.Provider value={value}>
       {children}
     </DeviceStatusContext.Provider>
   );
 };
 
+// 3. Buat Custom Hook
 export const useDeviceStatusContext = () => useContext(DeviceStatusContext);

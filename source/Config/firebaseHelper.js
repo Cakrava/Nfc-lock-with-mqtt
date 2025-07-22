@@ -67,6 +67,39 @@ export function SaveHistory(idUser, loginUser, deviceName, uid, image) {
     });
 }
 
+export function useApiUrl() {
+  const {setApiUrl} = useGlobalStateContext();
+
+  useEffect(() => {
+    const apiUrlRef = ref(database, 'validatorHelper/apiUrl');
+
+    const unsubscribe = onValue(apiUrlRef, snapshot => {
+      const url = snapshot.val();
+
+      // Pastikan URL ada dan merupakan string
+      if (url && typeof url === 'string') {
+        // Cek apakah URL diakhiri dengan '/'.
+        // Jika tidak, tambahkan '/' di akhir. Jika sudah ada, gunakan apa adanya.
+        const finalUrl = url.endsWith('/') ? url : `${url}/`;
+
+        // Simpan URL yang sudah diformat ke global state
+        setApiUrl(finalUrl);
+        console.log('Fetched & Formatted API URL:', finalUrl);
+      } else {
+        console.warn(
+          'API URL tidak ditemukan atau formatnya salah di Firebase.',
+        );
+      }
+    });
+
+    // Best practice: Lakukan cleanup saat komponen di-unmount
+    // untuk menghindari memory leak.
+    return () => {
+      unsubscribe();
+    };
+  }, [setApiUrl]);
+}
+
 export function getMyHistory() {
   const {
     setMyhistory,
@@ -112,13 +145,14 @@ export async function getMyData() {
     setLoginName,
     setLoginNumber,
     setPaymentStatus,
-
+    refreshMyData,
     setLoginUsername,
     setLoginRole,
     setLoginImage,
     setLoginPassword,
     tempId,
     setRefToken,
+    setLoginImageToken,
   } = useGlobalStateContext();
 
   useEffect(() => {
@@ -169,6 +203,8 @@ export async function getMyData() {
             setLoginRole(value.role);
             setLoginImage(value.imageUrl);
             setLoginPassword(value.password);
+            setLoginImageToken(value.imageToken || '');
+
             console.log('Data dari Firebase:', value.name); // Debugging
           } else {
             console.warn('Data tidak ditemukan di Firebase.');
@@ -184,7 +220,7 @@ export async function getMyData() {
 
     // Panggil fetchData untuk mendapatkan data
     fetchData();
-  }, [tempId]); // Hanya berjalan sekali ketika komponen pertama kali di-mount
+  }, [tempId, refreshMyData]); // Hanya berjalan sekali ketika komponen pertama kali di-mount
 }
 
 export function sendMessage(data) {

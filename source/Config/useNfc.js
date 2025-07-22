@@ -13,6 +13,7 @@ import {useGlobalStateContext} from './GlobalStateContext';
 import {
   getAllHistory,
   getMyData,
+  useApiUrl,
   getMyHistory,
   SaveHistory,
   sendLog,
@@ -41,10 +42,10 @@ export const NfcProvider = ({children}) => {
   const [nfcEnabled, setNfcEnabled] = useState(false);
 
   const {mqttConnected, isOnline} = useGlobalStateContext();
-
-  getMyData();
+  useApiUrl();
   getMyHistory();
   getAllHistory();
+  getMyData();
 
   const isRequestingNfcRef = useRef(false);
   const scanLoopTimeoutRef = useRef(null);

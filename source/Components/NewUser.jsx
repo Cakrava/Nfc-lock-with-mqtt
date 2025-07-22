@@ -13,48 +13,66 @@ import {
 } from 'react-native';
 import FastImage from 'react-native-fast-image';
 import Icon from 'react-native-vector-icons/Ionicons';
-import {useNavigation} from '@react-navigation/native';
 import Toast from 'react-native-simple-toast';
 import {launchImageLibrary} from 'react-native-image-picker';
 import {database} from '../../source/Config/firebase'; // Firebase Realtime Database Config
 import {ref, set} from 'firebase/database'; // Firebase Realtime Database
 import {styleClass} from '../Config/styleClass';
 import {sendLog} from '../Config/firebaseHelper';
-import {apiUrl} from '../../source/Config/firebase';
+import {useGlobalStateContext} from '../Config/GlobalStateContext';
+
 const windowWidth = Dimensions.get('window').width;
+
+// --- FUNGSI HELPERS (diletakkan di luar komponen) ---
+
 // Fungsi untuk menghasilkan ID acak
 const generateRandomID = () => {
   return Math.floor(10000000 + Math.random() * 90000000).toString();
 };
 
 // Fungsi untuk menghasilkan password acak
-const generateRandomPassword = () => {
+const generateRandomPassword = (length = 8) => {
   const chars =
     'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
   let password = '';
-  for (let i = 0; i < 8; i++) {
-    const randomIndex = Math.floor(Math.random() * chars.length);
-    password += chars[randomIndex];
+  for (let i = 0; i < length; i++) {
+    password += chars.charAt(Math.floor(Math.random() * chars.length));
   }
   return password;
 };
 
+// Fungsi untuk menghasilkan token gambar acak
+const generateImageToken = (length = 15) => {
+  const characters =
+    'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  let result = '';
+  for (let i = 0; i < length; i++) {
+    result += characters.charAt(Math.floor(Math.random() * characters.length));
+  }
+  return result;
+};
+
 export default function NewUser({bottomSheetRef}) {
-  const navigation = useNavigation();
+  // --- STATE MANAGEMENT ---
   const [id, setId] = useState(generateRandomID());
   const [name, setName] = useState('');
   const [nomorWhatsapp, setNomorWhatsapp] = useState('');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [image, setImage] = useState(null); // URI Gambar
-  const [saving, isSaving] = useState(false);
+  const [image, setImage] = useState(null); // URI Gambar Lokal
+  const [imageToken, setImageToken] = useState(''); // State untuk token gambar
+  const [saving, setSaving] = useState(false);
   const [saveFailed, setSaveFailed] = useState(false);
+  const {apiUrl} = useGlobalStateContext();
 
+  // --- LIFECYCLE HOOKS (useEffect) ---
   useEffect(() => {
+    // Generate username otomatis dari nama
     setUsername(name.toLowerCase().replace(/\s/g, ''));
   }, [name]);
 
+  // --- HANDLER FUNCTIONS ---
   const handleGeneratePassword = () => {
     setPassword(generateRandomPassword());
   };
@@ -75,7 +93,7 @@ export default function NewUser({bottomSheetRef}) {
       } else if (response.errorCode) {
         console.log('ImagePicker Error: ', response.errorMessage);
       } else if (response.assets && response.assets.length > 0) {
-        setImage(response.assets[0].uri); // Simpan URI gambar
+        setImage(response.assets[0].uri);
       }
     });
   };
@@ -86,48 +104,60 @@ export default function NewUser({bottomSheetRef}) {
       return;
     }
 
-    isSaving(true);
-    let imageUrl = null;
+    setSaving(true);
 
-    // Jika ada gambar yang dipilih, unggah terlebih dahulu
+    // 1. PERSIAPAN: Siapkan variabel final dengan nilai default null.
+    let finalImageUrl = null;
+    let finalImageToken = null;
+
+    // 2. PROSES KONDISIONAL: Jika ada gambar yang dipilih, unggah terlebih dahulu.
     if (image) {
       try {
+        // Buat token baru KHUSUS untuk gambar ini.
+        const newToken = generateImageToken();
+
         const formData = new FormData();
         formData.append('id', id);
+        // Kirim token yang baru dibuat ke API.
+        formData.append('image_token', newToken);
         formData.append('image', {
           uri: image,
           type: 'image/jpeg',
-          name: `${id}.jpg`,
+          name: `${newToken}.jpg`, // Nama file bisa menggunakan token agar lebih unik
         });
 
-        console.log(`mencoba link ${apiUrl}`);
         const response = await fetch(`${apiUrl}upload`, {
           method: 'POST',
           body: formData,
+          headers: {'Content-Type': 'multipart/form-data'},
         });
 
         if (response.ok) {
-          // Jika unggah berhasil, gunakan URL dari endpoint baru
-          imageUrl = `${apiUrl}images/${id}`;
+          // Jika upload berhasil, perbarui variabel final.
+          finalImageUrl = `${apiUrl}images/${newToken}`;
+          finalImageToken = newToken;
+
+          // Perbarui state (opsional untuk form baru, tapi best practice)
+          setImageToken(newToken);
         } else {
-          // Jika unggah gagal
+          // Jika upload gagal, hentikan proses.
           const errorResponse = await response.text();
           console.warn('Image upload failed:', errorResponse);
           alert('Gagal mengunggah gambar!');
-          isSaving(false);
+          setSaving(false);
           setSaveFailed(true);
           return;
         }
       } catch (error) {
         console.warn('Error uploading image:', error);
         alert('Gagal mengunggah gambar!');
-        isSaving(false);
+        setSaving(false);
         setSaveFailed(true);
         return;
       }
     }
 
-    // Lanjutkan menyimpan data ke Firebase Realtime Database
+    // 3. TINDAKAN AKHIR: Simpan data ke Firebase menggunakan nilai dari variabel final.
     const anggotaRef = ref(database, 'Anggota/' + id);
 
     set(anggotaRef, {
@@ -137,17 +167,18 @@ export default function NewUser({bottomSheetRef}) {
       nomorWhatsapp: nomorWhatsapp,
       username: username,
       role: 'User',
-      imageUrl: imageUrl, // URL gambar dari endpoint baru atau null
+      imageUrl: finalImageUrl, // URL gambar dari API atau null
+      imageToken: finalImageToken, // Token gambar dari generator atau null
     })
       .then(() => {
         Toast.show('Berhasil Menambah Data!', Toast.LONG);
-        isSaving(false);
+        setSaving(false);
         closeBottomSheet();
         sendLog(`Admin baru saja menambahkan ${name}`);
       })
       .catch(error => {
         console.error('Error saving data:', error);
-        isSaving(false);
+        setSaving(false);
         setSaveFailed(true);
         alert('Gagal menyimpan data!');
       });
@@ -159,36 +190,23 @@ export default function NewUser({bottomSheetRef}) {
     }
   };
 
+  // --- RENDER COMPONENT ---
   return (
     <View style={styleClass('w-full h-full')}>
       <ScrollView contentContainerStyle={styleClass('items-center p-3')}>
-        {/* ID */}
-        <View
-          style={{
-            width: '100%',
-            borderBottomWidth: 1,
-            borderColor: '#dedede',
-            paddingBottom: 10,
-          }}
-        >
+        {/* Header */}
+        <View style={styles.headerContainer}>
           <Text style={styleClass('text-2xl text-teal-500')}>Tambah User</Text>
         </View>
-        <View style={styleClass('w-1/4 mt-3 mb-1 self-start')}>
-          <Text>ID</Text>
-        </View>
-        <TextInput
-          style={styleClass('w-full p-4 border rounded-lg text-md')}
-          placeholder="ID"
-          value={id}
-          editable={false}
-        />
+
+        {/* ID */}
+        <Text style={styles.label}>ID</Text>
+        <TextInput style={styles.inputDisabled} value={id} editable={false} />
 
         {/* Nama */}
-        <View style={styleClass('w-1/4 mt-3 mb-1 self-start')}>
-          <Text>Nama</Text>
-        </View>
+        <Text style={styles.label}>Nama</Text>
         <TextInput
-          style={styleClass('w-full p-4 border rounded-lg text-md')}
+          style={styles.input}
           placeholder="e.g. John Smith"
           placeholderTextColor="#dedede"
           value={name}
@@ -196,25 +214,19 @@ export default function NewUser({bottomSheetRef}) {
         />
 
         {/* Username */}
-        <View style={styleClass('w-1/4 mt-3 mb-1 self-start')}>
-          <Text>Username</Text>
-        </View>
+        <Text style={styles.label}>Username</Text>
         <TextInput
-          style={styleClass(
-            'w-full p-4 border rounded-lg text-md text-teal-500',
-          )}
-          placeholder="----------"
+          style={styles.inputDisabled}
+          placeholder="terisi-otomatis"
           placeholderTextColor="#dedede"
           value={username}
           editable={false}
         />
 
         {/* Nomor WhatsApp */}
-        <View style={styleClass('w-1/4 mt-3 mb-1 self-start')}>
-          <Text>Nomor Whatsapp</Text>
-        </View>
+        <Text style={styles.label}>Nomor Whatsapp</Text>
         <TextInput
-          style={styleClass('w-full p-4 border rounded-lg text-md')}
+          style={styles.input}
           placeholder="e.g. 08xxxxxxxxxx"
           placeholderTextColor="#dedede"
           value={nomorWhatsapp}
@@ -223,23 +235,20 @@ export default function NewUser({bottomSheetRef}) {
         />
 
         {/* Password */}
-        <View style={styleClass('w-1/4 mt-3 mb-1 self-start')}>
-          <Text>Password</Text>
-        </View>
-        <View
-          style={styleClass(
-            'w-full p-2 border rounded-lg flex-row items-center justify-between mb-5',
-          )}
-        >
+        <Text style={styles.label}>Password</Text>
+        <View style={styles.passwordContainer}>
           <TextInput
-            style={styleClass('text-md w-1/8')}
-            placeholder="e.g. password"
+            style={styles.passwordInput}
+            placeholder="Klik ikon untuk generate"
             placeholderTextColor="#dedede"
             value={password}
             secureTextEntry={!showPassword}
             onChangeText={setPassword}
           />
-          <TouchableOpacity onPress={handleShowPassword}>
+          <TouchableOpacity
+            onPress={handleShowPassword}
+            style={{marginRight: 10}}
+          >
             <Icon
               name={showPassword ? 'eye-off-outline' : 'eye-outline'}
               size={20}
@@ -253,26 +262,24 @@ export default function NewUser({bottomSheetRef}) {
 
         {/* Tombol Pilih Gambar */}
         <TouchableOpacity
-          style={styleClass('w-full p-4 border rounded-lg center mt-3')}
+          style={styles.buttonChooseImage}
           onPress={handleChooseImage}
         >
-          <Text style={styleClass('text-md text-center text-gray-700')}>
+          <Text style={styles.buttonText}>
             {image ? 'Ubah Gambar' : 'Pilih Gambar'}
           </Text>
         </TouchableOpacity>
 
         {/* Preview Gambar */}
         {image && (
-          <View style={styleClass('w-full mt-3 mb-5')}>
-            <Text style={styleClass('text-gray-600 text-sm mb-3')}>
-              Preview Gambar:
-            </Text>
+          <View style={styles.previewContainer}>
+            <Text style={styles.previewLabel}>Preview Gambar:</Text>
             <Image
               source={{uri: image}}
               style={{
-                width: windowWidth - 32, // padding 16 kiri-kanan
-                height: windowWidth - 32,
-                borderRadius: 8,
+                ...styles.previewImage,
+                width: windowWidth - 24,
+                height: windowWidth - 24,
               }}
             />
           </View>
@@ -280,17 +287,18 @@ export default function NewUser({bottomSheetRef}) {
 
         {/* Tombol Simpan */}
         <TouchableOpacity
-          style={styleClass(
-            'bg-aquamarine-500 w-full rounded-lg center p-4 mt-4 mb-4',
-          )}
+          style={styles.buttonSave}
           onPress={handleSaveData}
+          disabled={saving}
         >
-          <Text style={styleClass('text-white text-md font-semibold')}>
-            {saving ? 'Menyimpan..' : 'Simpan'}
+          <Text style={styles.buttonSaveText}>
+            {saving ? 'Menyimpan...' : 'Simpan'}
           </Text>
         </TouchableOpacity>
+        <View style={{height: 40}} />
       </ScrollView>
 
+      {/* Modal Loading/Failed */}
       <Modal
         transparent={true}
         visible={saveFailed || saving}
@@ -299,26 +307,13 @@ export default function NewUser({bottomSheetRef}) {
         <Pressable
           onPress={() => {
             setSaveFailed(false);
-            isSaving(false);
+            setSaving(false);
           }}
-          style={{
-            flex: 1,
-            backgroundColor: 'rgba(0,0,0,0.3)',
-            justifyContent: 'center',
-            alignItems: 'center',
-            zIndex: 1000,
-          }}
+          style={styles.modalBackdrop}
         >
-          {/* Stop event propagation to prevent modal from closing when pressing the content */}
           <Pressable
             onPress={e => e.stopPropagation()}
-            style={{
-              borderWidth: 0.5,
-              borderColor: '#dedede',
-              borderRadius: 10,
-              backgroundColor: 'white',
-              padding: 20,
-            }}
+            style={styles.modalContent}
           >
             <FastImage
               source={
@@ -328,10 +323,7 @@ export default function NewUser({bottomSheetRef}) {
                   ? require('../Assets/icon/ic_failed.gif')
                   : null
               }
-              style={{
-                width: 100,
-                height: 100,
-              }}
+              style={styles.modalImage}
             />
           </Pressable>
         </Pressable>
@@ -340,4 +332,75 @@ export default function NewUser({bottomSheetRef}) {
   );
 }
 
-const styles = StyleSheet.create({});
+// Styles diletakkan di bawah untuk kerapian
+const styles = StyleSheet.create({
+  headerContainer: {
+    width: '100%',
+    borderBottomWidth: 1,
+    borderColor: '#dedede',
+    paddingBottom: 10,
+    marginBottom: 10,
+  },
+  label: {
+    width: '100%',
+    marginTop: 12,
+    marginBottom: 4,
+    textAlign: 'left',
+  },
+  input: {
+    ...styleClass('w-full p-4 border rounded-lg text-md'),
+  },
+  inputDisabled: {
+    ...styleClass(
+      'w-full p-4 border rounded-lg text-md bg-gray-100 text-gray-500',
+    ),
+  },
+  passwordContainer: {
+    ...styleClass(
+      'w-full p-2 border rounded-lg flex-row items-center justify-between',
+    ),
+    paddingHorizontal: 16,
+  },
+  passwordInput: {
+    ...styleClass('text-md'),
+    flex: 1,
+  },
+  buttonChooseImage: {
+    ...styleClass('w-full p-4 border rounded-lg center mt-5'),
+    borderColor: '#dedede',
+  },
+  buttonText: {
+    ...styleClass('text-md text-center text-gray-700'),
+  },
+  previewContainer: {
+    width: '100%',
+    marginTop: 12,
+  },
+  previewLabel: {
+    ...styleClass('text-gray-600 text-sm mb-3'),
+  },
+  previewImage: {
+    borderRadius: 8,
+  },
+  buttonSave: {
+    ...styleClass('bg-aquamarine-500 w-full rounded-lg center p-4 mt-5'),
+  },
+  buttonSaveText: {
+    ...styleClass('text-white text-md font-semibold'),
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.3)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    borderRadius: 10,
+    backgroundColor: 'white',
+    padding: 20,
+  },
+  modalImage: {
+    width: 100,
+    height: 100,
+  },
+});

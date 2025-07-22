@@ -24,7 +24,7 @@ import {styleClass} from '../../Config/styleClass';
 import LottieView from 'lottie-react-native';
 import {useGlobalStateContext} from '../../Config/GlobalStateContext';
 import {sendLog} from '../../Config/firebaseHelper';
-
+import {apiUrl} from '../../Config/firebase';
 const {width, height} = Dimensions.get('window');
 
 export default function User() {
@@ -99,20 +99,43 @@ export default function User() {
     return () => unsubscribe();
   }, []);
 
-  const handleDelete = id => {
-    const anggotaRef = ref(database, `Anggota/${id}`);
-    remove(anggotaRef)
-      .then(() =>
-        Toast.show(
-          'Anggota berhasil dihapus',
-          Toast.LONG,
-          sendLog(`Admin berhasil menghapus ${id}`),
-        ),
-      )
-      .catch(error => {
-        console.error('Error deleting data:', error);
-        alert('Gagal menghapus anggota!');
+  const handleDelete = async (id, name = '') => {
+    try {
+      // Langkah 1: Hapus gambar dari REST API
+      const response = await fetch(`${apiUrl}delete/${id}`, {
+        method: 'DELETE',
       });
+
+      // Cek apakah API berhasil menghapus. Jika gagal (dan bukan karena file tidak ada), hentikan proses.
+      // Status 404 (Not Found) kita anggap sukses karena tujuannya memang agar gambar tidak ada.
+      if (!response.ok && response.status !== 404) {
+        console.error(
+          'Gagal menghapus gambar dari API, status:',
+          response.status,
+        );
+        alert(
+          'Gagal menghapus file gambar terkait. Proses penghapusan data dibatalkan.',
+        );
+        return; // Hentikan fungsi di sini
+      }
+
+      // Langkah 2: Hapus data dari Firebase Realtime Database
+      const anggotaRef = ref(database, `Anggota/${id}`);
+      await remove(anggotaRef);
+
+      // Langkah 3: Tampilkan notifikasi sukses dan kirim log
+      const logMessage = name
+        ? `Admin berhasil menghapus ${name} (ID: ${id})`
+        : `Admin berhasil menghapus ID: ${id}`;
+      Toast.show('Anggota berhasil dihapus', Toast.LONG);
+      sendLog(logMessage);
+    } catch (error) {
+      // Blok ini akan menangkap error jaringan (misal: tidak ada koneksi) atau error server.
+      console.error('Terjadi kesalahan saat proses penghapusan:', error);
+      alert(
+        'Gagal menghapus anggota! Terjadi kesalahan pada jaringan atau server.',
+      );
+    }
   };
 
   const renderItem = ({item}) => (

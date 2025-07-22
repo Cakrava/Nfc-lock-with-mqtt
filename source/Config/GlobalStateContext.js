@@ -9,6 +9,7 @@ export const GlobalStateProvider = ({children}) => {
   const [nfcProcessing, setNfcProcessing] = useState(false);
   const [loginId, setLoginId] = useState(null);
   const [loginName, setLoginName] = useState('');
+  const [loginImageToken, setLoginImageToken] = useState('');
   const [loginNumber, setLoginNumber] = useState('');
   const [LoginUsername, setLoginUsername] = useState('');
   const [loginRole, setLoginRole] = useState('');
@@ -28,6 +29,7 @@ export const GlobalStateProvider = ({children}) => {
   const [paymentStatus, setPaymentStatus] = useState(true);
   const [chekingInternet, setChekingInternet] = useState(true);
   const [attempt, setAttempt] = useState(0);
+  const [apiUrl, setApiUrl] = useState('');
 
   const checkInternetConnection = async () => {
     try {
@@ -121,6 +123,10 @@ export const GlobalStateProvider = ({children}) => {
         nfcProcessing,
         setNfcProcessing,
         checkInternetConnection,
+        loginImageToken,
+        setLoginImageToken,
+        apiUrl,
+        setApiUrl,
       }}
     >
       {children}
