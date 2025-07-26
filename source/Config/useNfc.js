@@ -24,6 +24,7 @@ const NfcContext = createContext();
 export const useNfcContext = () => {
   return useContext(NfcContext);
 };
+
 export const NfcProvider = ({children}) => {
   const [pesan, setPesan] = useState('Mempersiapkan..');
   const [aktif, setAktif] = useState(false);
@@ -34,14 +35,17 @@ export const NfcProvider = ({children}) => {
   const [getTopic, setGetTopic] = useState('');
   const [getId, setGetId] = useState('');
   const [messageDetect, setMessageDetect] = useState('');
-  const [idUser, setIdUser] = useState('');
-  const [loginUser, setLoginUser] = useState('');
-  const [image, setImage] = useState('');
 
   const [nfcSupport, setNfcSupport] = useState(false);
   const [nfcEnabled, setNfcEnabled] = useState(false);
 
-  const {mqttConnected, isOnline} = useGlobalStateContext();
+  const {
+    mqttConnected,
+    isOnline,
+    loginId,
+    loginName,
+    loginImage,
+  } = useGlobalStateContext();
   useApiUrl();
   getMyHistory();
   getAllHistory();
@@ -132,7 +136,7 @@ export const NfcProvider = ({children}) => {
     console.log('startNfcSession: Attempting to start NFC session...');
     if (isMountedRef.current) {
       setPesan('Mempersiapkan NFC...');
-    } // Diatur di sini agar jelas saat inisialisasi
+    }
 
     try {
       const isSupported = await NfcManager.isSupported();
@@ -204,7 +208,6 @@ export const NfcProvider = ({children}) => {
     }
     isRequestingNfcRef.current = true;
 
-    // --- Logika Pesan Baru ---
     let currentPesan = 'Dekatkan ke perangkat';
     if (!isOnline) {
       currentPesan = 'Tidak ada koneksi internet. Deteksi kartu tetap aktif.';
@@ -216,7 +219,6 @@ export const NfcProvider = ({children}) => {
       setIsSuccess(false);
       setIsInvalid(false);
     }
-    // --- Akhir Logika Pesan Baru ---
 
     try {
       try {
@@ -242,32 +244,27 @@ export const NfcProvider = ({children}) => {
           setIsDetect(true);
         }
 
-        // Jika tidak ada koneksi MQTT, kita mungkin tidak ingin melanjutkan ke logika server
-        // tapi tetap memberikan feedback bahwa kartu terdeteksi.
         if (!mqttConnected || !isOnline) {
           if (isMountedRef.current) {
             setMessageDetect(
               `Kartu ${uid} terdeteksi. Server tidak terhubung.`,
             );
-            // Jangan set isSuccess atau isInvalid karena kita tidak bisa validasi ke server
           }
           sendLog(`Deteksi ${uid} saat server tidak terhubung.`);
-          // Langsung ke finally untuk loop scan berikutnya
-          // Jeda singkat agar pesan terbaca
           if (isMountedRef.current && aktif) {
             await new Promise(r => setTimeout(r, 2000));
           }
-          return; // Keluar dari try blok, langsung ke finally
+          return;
         }
 
-        // --- BLOK LOGIKA PEMROSESAN TAG (Hanya jika MQTT terhubung) ---
+        // --- BLOK LOGIKA PEMROSESAN TAG ---
+
+        // Langkah 1: Validasi UID kartu di Firebase
         const deviceRef = ref(database, `Device/${uid}`);
-        const messageValue = ref(database, 'validatorHelper/sendMessaage');
         const snapshot = await get(deviceRef);
-        const snapData = await get(messageValue);
-        const messageData = snapData.val()?.dataSendMessage;
         const ndefRecords = tag.ndefMessage;
 
+        // Logika pembacaan NDEF (tidak berubah)
         if (ndefRecords && ndefRecords.length > 0) {
           const textRecord = ndefRecords.find(
             r =>
@@ -284,17 +281,13 @@ export const NfcProvider = ({children}) => {
             sendLog(`UID: ${uid} terdeteksi dengan NDEF: ${plainText}`);
           } else {
             if (isMountedRef.current) {
-              setMessageDetect(
-                'Record text/plain tidak ditemukan atau payload kosong',
-              );
+              setMessageDetect('Record text/plain tidak ditemukan.');
             }
-            sendLog(
-              `Deteksi ${uid} tanpa record text/plain atau payload kosong!`,
-            );
+            sendLog(`Deteksi ${uid} tanpa record text/plain.`);
           }
         } else {
           if (isMountedRef.current) {
-            setMessageDetect('Berhasil mendapatkan data');
+            setMessageDetect('Berhasil mendapatkan data kartu.');
           }
           sendLog(`Deteksi ${uid} tanpa NdefMessage.`);
         }
@@ -303,6 +296,7 @@ export const NfcProvider = ({children}) => {
           const deviceData = snapshot.val();
           const deviceName = deviceData.name;
           const topic = deviceData.topic;
+
           if (!topic) {
             if (isMountedRef.current) {
               setPesan(`Topic tidak valid untuk ${deviceName}`);
@@ -312,62 +306,69 @@ export const NfcProvider = ({children}) => {
               `Gagal proses ${deviceName} (UID: ${uid}), topic tidak ada di Firebase.`,
             );
           } else {
+            // ==========================================================
+            //               MODIFIKASI UTAMA BERDASARKAN KONTEKS SERVER
+            // ==========================================================
+
+            // Langkah 2: Gunakan 'topic' dari data kartu untuk mencari status perangkat fisik.
+            // Path ini disesuaikan dengan cara server Node.js menyimpan status.
             const checkStatusDeviceRef = ref(
               database,
-              `validatorHelper/deviceStatus/${topic}`,
+              `Device/${topic}/status`,
             );
             const snapStatusData = await get(checkStatusDeviceRef);
-            const dataStatus = snapStatusData.val()?.deviceStatus;
+            const deviceStatus = snapStatusData.val(); // Langsung ambil nilainya, mis: "online" atau "offline"
+
             console.log(
-              `startScan: UID Valid: ${uid}, Topic: ${topic}, Device Status: ${dataStatus}`,
+              `startScan: UID Valid: ${uid}, Topic/DeviceKey: ${topic}, Status: ${deviceStatus}`,
             );
-            if (messageData == 'true') {
-              if (dataStatus == 'online') {
-                if (isMountedRef.current) {
-                  setIsInvalid(false);
-                  setIsSuccess(true);
-                  setPesan(`Membuka pintu ${deviceName}`);
-                }
-                publishMessage(
-                  'Pintu Dibuka oleh pengguna dengan UID valid',
-                  topic,
-                );
-                SaveHistory(idUser, loginUser, deviceName, uid, image);
-                sendLog(`Pintu dibuka oleh ${loginUser} (UID: ${uid})`);
-              } else {
-                if (isMountedRef.current) {
-                  setPesan(`Perangkat ${deviceName} offline!`);
-                  setIsInvalid(true);
-                  setIsSuccess(false);
-                }
-                sendLog(`Akses ${deviceName} (UID: ${uid}) gagal, offline!`);
-              }
-            } else {
+
+            // Kondisi utama: Periksa apakah perangkat fisik online.
+            if (deviceStatus === 'online') {
               if (isMountedRef.current) {
-                setPesan('Pengiriman pesan tidak diizinkan.');
+                setIsInvalid(false);
+                setIsSuccess(true);
+                setPesan(`Membuka pintu ${deviceName}`);
+              }
+              // Publikasikan pesan ke MQTT untuk membuka pintu
+              publishMessage(
+                'Pintu Dibuka oleh pengguna dengan UID valid',
+                topic,
+              );
+              // Simpan riwayat akses
+              SaveHistory(loginId, loginName, deviceName, uid, loginImage);
+              sendLog(
+                `Pintu dibuka oleh ${loginName} (${deviceName} - UID: ${uid})`,
+              );
+            } else {
+              // Jika status bukan 'online' (bisa 'offline' atau null)
+              if (isMountedRef.current) {
+                setPesan(`Perangkat ${deviceName} offline!`);
                 setIsInvalid(true);
                 setIsSuccess(false);
               }
-              sendLog(`Akses ke ${uid} gagal, messageData bukan "true"`);
+              sendLog(
+                `Akses ${deviceName} (UID: ${uid}) gagal, perangkat offline!`,
+              );
             }
           }
         } else {
+          // Jika UID kartu tidak ditemukan di Firebase
           if (isMountedRef.current) {
             setPesan('Perangkat tidak dikenali!');
             setIsInvalid(true);
             setIsSuccess(false);
           }
           console.log(`startScan: UID Tidak Valid: ${uid}`);
-          sendLog(`${loginUser} mendeteksi UID ${uid} yang tidak dikenali!`);
+          sendLog(`${loginName} mendeteksi UID ${uid} yang tidak dikenali!`);
         }
+
         if (isMountedRef.current && aktif) {
           await new Promise(r => setTimeout(r, isSuccess ? 1500 : 3000));
         }
         // --- AKHIR BLOK LOGIKA PEMROSESAN TAG ---
       } else {
-        // Tidak ada tag, pesan sudah diatur di atas sesuai kondisi jaringan
         if (isMountedRef.current) {
-          // setPesan('Tidak ada tag. Tempelkan ulang.'); // Pesan sudah diatur di atas
           setIsDetect(false);
         }
       }
@@ -383,9 +384,8 @@ export const NfcProvider = ({children}) => {
           (error.message.includes('cancelled') ||
             error.message.includes('closed'))
         ) {
-          // Pesan sudah diatur sesuai kondisi jaringan
+          // Biarkan pesan jaringan yang ditampilkan
         } else {
-          // Pesan error NFC umum, mungkin timpa pesan jaringan jika lebih penting
           setPesan('Terjadi kesalahan NFC...');
         }
         setIsDetect(false);
@@ -400,7 +400,7 @@ export const NfcProvider = ({children}) => {
         scanLoopTimeoutRef.current = setTimeout(() => {
           console.log('startScan finally: Scheduling next scan.');
           startScan();
-        }, 1000); // Jeda untuk loop
+        }, 1000);
       } else if (isMountedRef.current) {
         console.log(
           'startScan finally: Sesi tidak aktif, tidak menjadwalkan scan berikutnya.',

@@ -6,7 +6,7 @@ import {useEffect} from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {useNavigation} from '@react-navigation/native';
 
-export function SaveHistory(idUser, loginUser, deviceName, uid, image) {
+export function SaveHistory(loginId, loginName, deviceName, uid, loginImage) {
   const generateTimestampId = () => {
     return Date.now().toString(); // Menggunakan milidetik saat ini sebagai ID
   };
@@ -28,18 +28,18 @@ export function SaveHistory(idUser, loginUser, deviceName, uid, image) {
   const timeStamp = getFormattedTimestamp(); // Timestamp yang diformat
 
   // Referensi Firebase
-  const historyRef = ref(database, `History/${idUser}/${randomId}`);
+  const historyRef = ref(database, `History/${loginId}/${randomId}`);
   const allHistoryRef = ref(database, `AllHistory/${randomId}`);
 
   // Data yang akan disimpan
   const historyData = {
     idHistory: randomId,
-    user: loginUser,
-    idUser: idUser,
+    user: loginName,
+    iduser: loginId,
     idDevice: uid,
     device: deviceName,
     timeStamp: timeStamp,
-    image: image,
+    image: loginImage,
     pesan: `Membuka pintu ${deviceName}`,
   };
 
@@ -118,7 +118,7 @@ export function getMyHistory() {
     const unsubscribe = onValue(
       historyRef,
       snapshot => {
-        console.log('mencoba mendapatkan data');
+        console.log('mencoba mendapatkan data history saya');
 
         const data = snapshot.val();
         setMyhistory(
@@ -126,6 +126,7 @@ export function getMyHistory() {
         );
         if (!data) {
           setMyHistoryEmpty(true);
+          console.log('data history sukses diambil');
         } else {
           setMyHistoryEmpty(false);
         }
@@ -297,15 +298,6 @@ export function getAllHistory() {
 
     return () => unsubscribe(); // Cleanup listener
   }, []); // Hanya trigger effect jika loginId berubah
-}
-export function sendDeviceStatus(device, deviceStatus) {
-  const validatorHelper = ref(
-    database,
-    `validatorHelper/deviceStatus/${device}`,
-  );
-  set(validatorHelper, {
-    deviceStatus: deviceStatus,
-  });
 }
 
 export async function handleLogin(

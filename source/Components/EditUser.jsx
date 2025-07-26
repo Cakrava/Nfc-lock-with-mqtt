@@ -14,11 +14,10 @@ import FastImage from 'react-native-fast-image';
 import Icon from 'react-native-vector-icons/Ionicons';
 import {launchImageLibrary} from 'react-native-image-picker';
 import {database} from '../../source/Config/firebase';
-import {ref, update} from 'firebase/database';
+import {ref, update, onValue, remove} from 'firebase/database';
 import Toast from 'react-native-simple-toast';
 import {styleClass} from '../Config/styleClass';
 import {useGlobalStateContext} from '../Config/GlobalStateContext';
-
 const windowWidth = Dimensions.get('window').width;
 
 export default function EditUser({id, bottomSheetRef}) {
@@ -78,20 +77,23 @@ export default function EditUser({id, bottomSheetRef}) {
 
   // Isi form dengan data dari Global Context saat pertama kali dimuat
   useEffect(() => {
-    setName(loginName || '');
-    setNomorWhatsapp(loginNumber || '');
-    setPassword(loginPassword || '');
-    setUsername(LoginUsername || '');
-    setImage(loginImage || null);
-    setImageToken(loginImageToken || '');
-  }, [
-    loginName,
-    loginNumber,
-    loginPassword,
-    loginImage,
-    LoginUsername,
-    loginImageToken,
-  ]);
+    if (!id) return;
+
+    const userRef = ref(database, `Anggota/${id}`);
+    const unsubscribe = onValue(userRef, snapshot => {
+      const data = snapshot.val();
+      if (data) {
+        setName(data.name || '');
+        setNomorWhatsapp(data.nomorWhatsapp || '');
+        setPassword(data.password || '');
+        setUsername(data.username || '');
+        setImage(data.imageUrl || '');
+        setImageToken(data.imageToken || '');
+      }
+    });
+
+    return () => unsubscribe(); // Cleanup listener
+  }, [id]);
 
   // Update username secara otomatis saat nama diketik
   useEffect(() => {

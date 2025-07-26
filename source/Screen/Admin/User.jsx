@@ -24,7 +24,7 @@ import {styleClass} from '../../Config/styleClass';
 import LottieView from 'lottie-react-native';
 import {useGlobalStateContext} from '../../Config/GlobalStateContext';
 import {sendLog} from '../../Config/firebaseHelper';
-import {apiUrl} from '../../Config/firebase';
+
 const {width, height} = Dimensions.get('window');
 
 export default function User() {
@@ -37,7 +37,7 @@ export default function User() {
   const [tinggi, setTinggi] = useState(height);
   const [loading, setLoading] = useState(true);
   const [isEmpty, setIsEmpti] = useState(true);
-  const {loginId} = useGlobalStateContext();
+  const {loginId, apiUrl} = useGlobalStateContext();
   const handleTingkatkan = id => {
     const UpdateAnggota = ref(database, 'Anggota/' + id);
     const data = {role: 'Admin'};
