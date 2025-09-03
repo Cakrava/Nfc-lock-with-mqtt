@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   Dimensions,
   Image,
+  SafeAreaView,
 } from 'react-native';
 import {useNavigation} from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/Ionicons';
@@ -16,9 +17,10 @@ import {useGlobalStateContext} from '../../Config/GlobalStateContext';
 
 const {height} = Dimensions.get('window');
 
-// Fungsi untuk menghitung waktu relatif
+// Fungsi untuk menghitung waktu relatif (tidak ada perubahan)
 const getRelativeTime = timeStamp => {
   const now = new Date();
+  // Format tanggal: DD-MM-YYYY HH:mm:ss
   const [day, month, year, hours, minutes, seconds] = timeStamp
     .split(/[- :]/)
     .map(Number);
@@ -37,108 +39,152 @@ export default function AllHistory({route}) {
   const {idData} = route.params;
   const navigation = useNavigation();
   const [sortedHistory, setSortedHistory] = useState([]);
-  const {loginId, allHistory, allHistoryEmpty} = useGlobalStateContext();
+  const {allHistory} = useGlobalStateContext();
 
-  // Mengurutkan data berdasarkan timeStamp saat allHistory berubah
+  // State untuk menandakan apakah data kosong setelah difilter
+  const [isHistoryEmpty, setIsHistoryEmpty] = useState(true);
+
   useEffect(() => {
-    if (allHistory) {
-      const filtered = allHistory.filter(item => item.idDevice === idData); // Filter berdasarkan idDevice
+    // PERBAIKAN 1: Cek apakah allHistory adalah objek dan tidak kosong
+    if (
+      allHistory &&
+      typeof allHistory === 'object' &&
+      Object.keys(allHistory).length > 0
+    ) {
+      // PERBAIKAN 2: Ubah objek allHistory menjadi array
+      const historyArray = Object.values(allHistory);
+      [1];
 
+      // Filter array berdasarkan idDevice yang diterima dari route.params
+      const filtered = historyArray.filter(item => item.idDevice === idData);
+
+      // Cek apakah hasil filter kosong
+      if (filtered.length === 0) {
+        setIsHistoryEmpty(true);
+        setSortedHistory([]); // Kosongkan state jika tidak ada data
+        return;
+      }
+
+      setIsHistoryEmpty(false);
+
+      // Urutkan array yang sudah difilter berdasarkan timeStamp
       const sorted = filtered.sort((a, b) => {
         const dateA = new Date(
           ...a.timeStamp
             .split(/[- :]/)
-            .map((num, i) => (i === 1 ? num - 1 : Number(num))),
+            .map((num, i) => (i === 1 ? Number(num) - 1 : Number(num))),
         );
         const dateB = new Date(
           ...b.timeStamp
             .split(/[- :]/)
-            .map((num, i) => (i === 1 ? num - 1 : Number(num))),
+            .map((num, i) => (i === 1 ? Number(num) - 1 : Number(num))),
         );
         return dateB - dateA; // Urutkan dari terbaru ke terlama
       });
 
       setSortedHistory(sorted);
+    } else {
+      // Jika allHistory kosong dari global state
+      setIsHistoryEmpty(true);
+      setSortedHistory([]);
     }
   }, [allHistory, idData]);
 
   const renderItem = ({item}) => (
     <View
       style={styleClass(
-        'bg-white rounded-lg p-3 mb-2  border-b-1 border-gray-300 mt-3',
+        'bg-white rounded-lg p-3 mb-2 border-b border-gray-200 mt-3 mx-4',
       )}
     >
-      <View style={styleClass('w-full ')}>
-        <View style={styleClass(' flex-row w-full ')}>
-          <Image
-            source={{uri: item.image}}
-            style={styleClass('w-70 h-70 rounded-full  bg-gray-300 mr-5')}
-          />
-          <View style={styleClass('w-full ')}>
-            <Text style={styleClass('text-2xl font-semibold text-green-500')}>
-              Akses pintu masuk!
-            </Text>
-            <Text style={styleClass('text-md font-semibold text-gray-500')}>
-              Akses masuk ke{item.device}
-            </Text>
-            <Text style={[styleClass('text-orange-600'), {fontSize: 12}]}>
-              Diakses oleh {item.user}
-            </Text>
-
-            <Text style={styleClass('text-sm text-gray-700 mt-1')}>
-              {getRelativeTime(item.timeStamp)}
-            </Text>
-          </View>
+      <View style={styleClass('flex-row w-full items-center')}>
+        <Image
+          source={{uri: item.image}}
+          style={styleClass('w-16 h-16 rounded-full bg-gray-300 mr-4')}
+        />
+        <View style={styleClass('flex-1')}>
+          <Text style={styleClass('text-lg font-bold text-teal-600')}>
+            {item.pesan}
+          </Text>
+          <Text
+            style={[
+              styleClass('text-orange-600'),
+              {fontSize: 12, fontWeight: '600'},
+            ]}
+          >
+            {`Diakses oleh: ${item.user}`}
+          </Text>
+          <Text style={styleClass('text-sm text-gray-500 mt-1')}>
+            {getRelativeTime(item.timeStamp)}
+          </Text>
         </View>
       </View>
     </View>
   );
+
   return (
-    <View style={[styleClass('rounded-lg w-full bg-white h-full')]}>
-      <View
-        style={[
-          styleClass('w-full flex-row items-center mb-4 px-4 py-2'),
-          {backgroundColor: '#14b8a6'},
-        ]}
-      >
+    <SafeAreaView style={styles.container}>
+      {/* Header */}
+      <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()}>
           <Icon name="arrow-back" size={30} color="white" />
         </TouchableOpacity>
-        <Text style={styleClass('text-white text-2xl font-bold ml-4')}>
-          Riwayat user
-        </Text>
+        <Text style={styles.headerText}>Riwayat Akses</Text>
       </View>
 
-      {allHistoryEmpty && (
-        <View style={styleClass('w-full center')}>
+      {/* Konten */}
+      {isHistoryEmpty ? (
+        <View style={styles.emptyContainer}>
           <LottieView
             source={require('../../Assets/Animation/empty_data.json')}
             autoPlay
-            style={{width: height * 0.2, height: height * 0.2}}
+            loop
+            style={styles.lottie}
           />
+          <Text style={styles.emptyText}>Belum Ada Riwayat Akses</Text>
         </View>
+      ) : (
+        <FlatList
+          data={sortedHistory}
+          // PERBAIKAN 3: Gunakan idHistory yang unik sebagai key
+          keyExtractor={item => item.idHistory}
+          renderItem={renderItem}
+          contentContainerStyle={{paddingBottom: 20}}
+        />
       )}
-      <FlatList
-        scrollEnabled={false}
-        data={sortedHistory}
-        keyExtractor={item => item.id}
-        renderItem={renderItem}
-        contentContainerStyle={{paddingBottom: 16}}
-        style={{padding: 0}}
-      />
-    </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    marginTop: 40,
-    backgroundColor: 'white',
+    backgroundColor: '#f4f4f5', // Warna background netral
   },
-
-  itemContent: {
+  header: {
+    backgroundColor: '#14b8a6',
     flexDirection: 'row',
     alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  headerText: {
+    color: 'white',
+    fontSize: 22,
+    fontWeight: 'bold',
+    marginLeft: 16,
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  lottie: {
+    width: height * 0.25,
+    height: height * 0.25,
+  },
+  emptyText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: '#6c757d',
   },
 });

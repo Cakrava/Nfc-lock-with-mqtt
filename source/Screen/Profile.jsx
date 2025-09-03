@@ -1,21 +1,22 @@
+import {BackHandler} from 'react-native';
+import React, {useRef} from 'react';
 import {
   Image,
-  StyleSheet,
   Text,
   TouchableOpacity,
-  Dimensions,
   View,
+  Dimensions, // Disimpan untuk RBSheet height
 } from 'react-native';
-import {sendLog} from '../Config/firebaseHelper';
-import React, {useRef, useState} from 'react';
-import {styleClass} from '../Config/styleClass';
-import Icon from 'react-native-vector-icons/Ionicons'; // Import Ionicons
+import {database} from '../Config/firebase';
 import {useGlobalStateContext} from '../Config/GlobalStateContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import {useNavigation} from '@react-navigation/core';
+import {ref, set, onValue, get, remove, close} from 'firebase/database'; // Firebase Realtime Database
 import RBSheet from 'react-native-raw-bottom-sheet';
 import EditUser from '../Components/EditUser';
+import {styleClass} from '../Config/styleClass'; // Asumsi ini adalah style helper Anda
+
 export default function Profile() {
+  // 1. Mengambil data dan fungsi yang relevan dari Global Context
   const {
     loginImage,
     loginId,
@@ -25,104 +26,74 @@ export default function Profile() {
     loginRole,
     setStatusLogin,
     setLogin,
+    setLoginId,
+    setLoginName,
+    setLoginImage,
+    setLoginRole,
+    setLoginUsername,
+    setLoginNumber,
+    setMyhistory, // Kosongkan juga data history, dll.
+    setMyHistoryEmpty,
+    setRefreshMyData,
+    setTempId,
+    tempId,
+
+    // Reset status login untuk memicu navigasi
   } = useGlobalStateContext();
-  const [selectedId, setSelectedId] = useState(loginId);
-  const bottomSheetRef = useRef();
-  const logoutSheetRef = useRef(); // Tambahkan referensi untuk bottom sheet logout
-  const {width, height} = Dimensions.get('window');
-  const [lebar, setLebar] = useState(width * 0.8);
-  const [tinggi, setTinggi] = useState(height);
-  const [id, setId] = useState('');
 
-  const [name, setName] = useState('');
-  const [nomorWhatsapp, setNomorWhatsapp] = useState('');
-  const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
-  const [image, setImage] = useState(null); // URI Gambar
-  const [saving, isSaving] = useState(false);
-  const navigation = useNavigation();
+  // 2. Refs untuk mengontrol Bottom Sheets
+  const editProfileSheetRef = useRef();
+  const logoutSheetRef = useRef();
+  const {height} = Dimensions.get('window');
 
-  const handleShowPassword = () => {
-    setShowPassword(!showPassword);
-  };
+  // Di dalam file Profile.js
 
-  const handleChooseImage = () => {
-    const options = {
-      mediaType: 'photo',
-      quality: 1,
-    };
+  // ...
 
-    launchImageLibrary(options, response => {
-      if (response.assets && response.assets.length > 0) {
-        setImage(response.assets[0].uri); // Simpan URI gambar
+  const executeLogout = async () => {
+    try {
+      console.log('Memulai proses logout...');
+
+      // LANGKAH 1: RESET SEMUA STATE GLOBAL YANG BERKAITAN DENGAN USER
+      setLoginId(null);
+      setLoginName('');
+      setLoginImage('');
+      setLoginRole('');
+      setLoginUsername('');
+      setLoginNumber('');
+      setMyhistory([]);
+      setMyHistoryEmpty(true);
+      setTempId('');
+      setStatusLogin(false);
+      setLogin(null);
+
+      console.log('State global telah di-reset.');
+
+      // LANGKAH 2: HAPUS HANYA DATA SESI PENGGUNA DARI ASYNCSTORAGE
+      // Perbaikan: removeItem hanya menerima satu key, jadi harus dipanggil dua kali untuk menghapus dua key
+      // Hapus semua data AsyncStorage kecuali @phonedataid_saved
+      // Hapus hanya key '@user_data' dari AsyncStorage saat logout
+      await AsyncStorage.removeItem('@user_data');
+      console.log('Semua data di AsyncStorage telah dihapus.');
+
+      // LANGKAH 3: Tutup sheet logout jika masih terbuka
+      if (logoutSheetRef.current) {
+        logoutSheetRef.current.close();
       }
-    });
-  };
-  async function handleLogout() {
-    logoutSheetRef.current.open(); // Buka bottom sheet logout
-  }
-  const closeBottomSheet = () => {
-    if (bottomSheetRef.current) {
-      bottomSheetRef.current.close();
+
+      // Catatan: Jika ingin lebih aman, bisa tambahkan notifikasi sebelum keluar
+    } catch (error) {
+      console.warn('Terjadi kegagalan saat proses logout:', error);
+      // Anda bisa menambahkan notifikasi error untuk pengguna di sini jika perlu
     }
   };
 
-  const handleSaveData = async () => {
-    if (name === '' || password === '') {
-      alert('Nama dan Password harus diisi!');
-      return;
-    }
+  // ...
 
-    let imageUrl = null;
-
-    if (image) {
-      try {
-        isSaving(true);
-        const storage = getStorage();
-        const imageName = `images/${id}.jpg`;
-        const storageReference = storageRef(storage, imageName);
-
-        // Upload file ke Firebase Storage
-        const response = await fetch(image);
-        const blob = await response.blob();
-        await uploadBytes(storageReference, blob);
-
-        // Dapatkan URL gambar
-        imageUrl = await getDownloadURL(storageReference);
-      } catch (error) {
-        console.error('Error uploading image:', error);
-        alert('Gagal mengunggah gambar!');
-        isSaving(false);
-        return;
-      }
-    }
-
-    const anggotaRef = ref(database, 'Anggota/' + id);
-
-    set(anggotaRef, {
-      id: id,
-      name: name,
-      password: password,
-      nomorWhatsapp: nomorWhatsapp,
-      role: 'User',
-      imageUrl: imageUrl, // URL gambar
-    })
-      .then(() => {
-        Toast.show('Berhasil Menambah Data!', Toast.LONG);
-        isSaving(false);
-        closeBottomSheet();
-        sendLog(`Admin baru saja menambahkan ${name}`);
-      })
-      .catch(error => {
-        console.error('Error saving data:', error);
-        isSaving(false);
-        alert('Gagal menyimpan data!');
-      });
-  };
-
+  // 5. Render komponen
   return (
     <View style={{flex: 1, backgroundColor: '#F8F9FA', padding: 20}}>
-      {/* Header Grid */}
+      {/* Header Profil */}
       <View
         style={[
           styleClass('bg-aquamarine-500 shadow-md'),
@@ -133,9 +104,6 @@ export default function Profile() {
             padding: 15,
             borderRadius: 12,
             shadowColor: '#CED4DA',
-            shadowOffset: {width: 0, height: 2},
-            shadowOpacity: 0.5,
-            shadowRadius: 3,
             elevation: 3,
           },
         ]}
@@ -150,7 +118,7 @@ export default function Profile() {
             marginRight: 20,
           }}
         />
-        <View style={[{flex: 1}]}>
+        <View style={{flex: 1}}>
           <Text style={{fontSize: 26, fontWeight: '600', color: 'white'}}>
             {loginName}
           </Text>
@@ -158,7 +126,7 @@ export default function Profile() {
         </View>
       </View>
 
-      {/* Grid Info */}
+      {/* Grid Info Pengguna */}
       <View
         style={{
           flexDirection: 'row',
@@ -166,202 +134,62 @@ export default function Profile() {
           justifyContent: 'space-between',
         }}
       >
-        {/* Item Grid 1 */}
-        <View
-          style={[
-            {
-              width: '48%',
-              backgroundColor: '#FFFFFF',
-              padding: 15,
-              borderRadius: 8,
-              marginBottom: 15,
-              shadowColor: '#DEE2E6',
-              shadowOffset: {width: 0, height: 1},
-              shadowOpacity: 0.7,
-              shadowRadius: 2,
-              elevation: 2,
-            },
-            styleClass('shadow-sm'),
-          ]}
-        >
-          <Text style={{fontSize: 12, color: '#ADB5BD', marginBottom: 5}}>
-            ID PENGGUNA
-          </Text>
-          <Text style={{fontSize: 16, color: '#495057', fontWeight: '500'}}>
-            {loginId}
-          </Text>
-        </View>
-        {/* Item Grid 2 */}
-        <View
-          style={[
-            {
-              width: '48%',
-              backgroundColor: '#FFFFFF',
-              padding: 15,
-              borderRadius: 8,
-              marginBottom: 15,
-              shadowColor: '#DEE2E6',
-              shadowOffset: {width: 0, height: 1},
-              shadowOpacity: 0.7,
-              shadowRadius: 2,
-              elevation: 2,
-            },
-            styleClass('shadow-sm'),
-          ]}
-        >
-          <Text style={{fontSize: 12, color: '#ADB5BD', marginBottom: 5}}>
-            USERNAME
-          </Text>
-          <Text style={{fontSize: 16, color: '#495057', fontWeight: '500'}}>
-            {LoginUsername}
-          </Text>
-        </View>
-        {/* Item Grid 3 */}
-        <View
-          style={[
-            {
-              width: '100%',
-              backgroundColor: '#FFFFFF',
-              padding: 15,
-              borderRadius: 8,
-              marginBottom: 25,
-              shadowColor: '#DEE2E6',
-              shadowOffset: {width: 0, height: 1},
-              shadowOpacity: 0.7,
-              shadowRadius: 2,
-              elevation: 2,
-            },
-            styleClass('shadow-sm'),
-          ]}
-        >
-          <Text style={{fontSize: 12, color: '#ADB5BD', marginBottom: 5}}>
-            WHATSAPP
-          </Text>
-          <Text style={{fontSize: 16, color: '#495057', fontWeight: '500'}}>
-            {loginNumber}
-          </Text>
-        </View>
+        <InfoItem label="ID PENGGUNA" value={loginId} width="48%" />
+        <InfoItem label="USERNAME" value={LoginUsername} width="48%" />
+        <InfoItem label="WHATSAPP" value={loginNumber} width="100%" />
       </View>
 
       {/* Tombol Aksi */}
       <TouchableOpacity
-        onPress={() => {
-          bottomSheetRef.current.open();
-        }}
-        style={{
-          backgroundColor: '#E9ECEF',
-          paddingVertical: 15,
-          borderRadius: 8,
-          alignItems: 'center',
-          marginBottom: 12,
-        }}
+        onPress={() => editProfileSheetRef.current.open()}
+        style={styles.actionButton}
       >
-        <Text style={{color: '#495057', fontSize: 16, fontWeight: '500'}}>
-          Atur ulang profile
-        </Text>
+        <Text style={styles.actionButtonText}>Atur ulang profile</Text>
       </TouchableOpacity>
       <TouchableOpacity
-        onPress={handleLogout}
-        style={{
-          backgroundColor: '#F1AEB5',
-          paddingVertical: 15,
-          borderRadius: 8,
-          alignItems: 'center',
-        }}
+        onPress={() => logoutSheetRef.current.open()}
+        style={[styles.actionButton, styles.logoutButton]}
       >
-        <Text style={{color: '#D94854', fontSize: 16, fontWeight: '500'}}>
+        <Text style={[styles.actionButtonText, styles.logoutButtonText]}>
           Keluar
         </Text>
       </TouchableOpacity>
 
+      {/* Bottom Sheet untuk Edit Profile */}
       <RBSheet
-        ref={bottomSheetRef}
-        height={tinggi}
+        ref={editProfileSheetRef}
+        height={height}
         draggable={true}
-        customStyles={{
-          wrapper: {backgroundColor: 'rgba(200, 200, 200, 0.4)'},
-          draggableIcon: {backgroundColor: '#ADB5BD'},
-          container: {
-            backgroundColor: '#FFFFFF',
-            borderTopLeftRadius: 15,
-            borderTopRightRadius: 15,
-            padding: 10,
-            borderWidth: 1,
-            borderColor: '#F1F3F5',
-          },
-        }}
+        customStyles={sheetStyles}
       >
-        <View style={{padding: 15, alignItems: 'center'}}></View>
-        <EditUser id={selectedId} bottomSheetRef={bottomSheetRef} />
+        {/* Komponen EditUser bertanggung jawab atas logikanya sendiri */}
+        <EditUser id={loginId} bottomSheetRef={editProfileSheetRef} />
       </RBSheet>
 
+      {/* Bottom Sheet untuk Konfirmasi Logout */}
       <RBSheet
         ref={logoutSheetRef}
+        height={250}
         draggable={true}
-        customStyles={{
-          wrapper: {backgroundColor: 'rgba(200, 200, 200, 0.4)'},
-          draggableIcon: {backgroundColor: '#ADB5BD'},
-          container: {
-            backgroundColor: '#FFFFFF',
-            borderTopLeftRadius: 15,
-            borderTopRightRadius: 15,
-            padding: 10,
-            borderWidth: 1,
-            borderColor: '#F1F3F5',
-          },
-        }}
+        customStyles={sheetStyles}
       >
-        <View style={{padding: 15, alignItems: 'center'}}>
-          <Text style={{fontSize: 18, fontWeight: 'bold', color: '#495057'}}>
-            Konfirmasi Logout
+        <View style={styles.sheetContainer}>
+          <Text style={styles.sheetTitle}>Konfirmasi Logout</Text>
+          <Text style={styles.sheetSubtitle}>
+            Apakah Anda yakin ingin keluar?
           </Text>
-          <Text style={{fontSize: 14, color: '#495057', marginTop: 10}}>
-            Apakah Anda yakin ingin logout?
-          </Text>
-          <View
-            style={{
-              flexDirection: 'row',
-              justifyContent: 'space-between',
-              marginTop: 20,
-            }}
-          >
+          <View style={styles.sheetButtonRow}>
             <TouchableOpacity
               onPress={() => logoutSheetRef.current.close()}
-              style={{
-                backgroundColor: '#E9ECEF',
-                paddingVertical: 10,
-                paddingHorizontal: 20,
-                borderRadius: 8,
-                alignItems: 'center',
-                margin: 5,
-              }}
+              style={[styles.sheetButton, styles.cancelButton]}
             >
-              <Text style={{color: '#495057', fontSize: 16, fontWeight: '500'}}>
-                Batal
-              </Text>
+              <Text style={styles.sheetButtonText}>Batal</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              onPress={async () => {
-                try {
-                  console.log('berhasil logout');
-                  setStatusLogin(false);
-                  setLogin(null);
-                  await AsyncStorage.clear();
-                  logoutSheetRef.current.close();
-                } catch {
-                  console.log('gagal menghapus sesi');
-                }
-              }}
-              style={{
-                margin: 5,
-                backgroundColor: '#F1AEB5',
-                paddingVertical: 10,
-                paddingHorizontal: 20,
-                borderRadius: 8,
-                alignItems: 'center',
-              }}
+              onPress={executeLogout}
+              style={[styles.sheetButton, styles.confirmLogoutButton]}
             >
-              <Text style={{color: '#D94854', fontSize: 16, fontWeight: '500'}}>
+              <Text style={[styles.sheetButtonText, {color: '#D94854'}]}>
                 Logout
               </Text>
             </TouchableOpacity>
@@ -372,4 +200,98 @@ export default function Profile() {
   );
 }
 
-const styles = StyleSheet.create({});
+// Komponen kecil untuk menghindari duplikasi kode pada Grid Info
+const InfoItem = ({label, value, width}) => (
+  <View style={[styles.infoItem, {width}]}>
+    <Text style={styles.infoLabel}>{label}</Text>
+    <Text style={styles.infoValue}>{value}</Text>
+  </View>
+);
+
+// Style dipindahkan ke StyleSheet untuk kerapian
+const sheetStyles = {
+  wrapper: {backgroundColor: 'rgba(0, 0, 0, 0.4)'},
+  draggableIcon: {backgroundColor: '#ADB5BD'},
+  container: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 15,
+    borderTopRightRadius: 15,
+  },
+};
+
+const styles = {
+  infoItem: {
+    backgroundColor: '#FFFFFF',
+    padding: 15,
+    borderRadius: 8,
+    marginBottom: 15,
+    elevation: 2,
+    shadowColor: '#DEE2E6',
+  },
+  infoLabel: {
+    fontSize: 12,
+    color: '#ADB5BD',
+    marginBottom: 5,
+  },
+  infoValue: {
+    fontSize: 16,
+    color: '#495057',
+    fontWeight: '500',
+  },
+  actionButton: {
+    backgroundColor: '#E9ECEF',
+    paddingVertical: 15,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  actionButtonText: {
+    color: '#495057',
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  logoutButton: {
+    backgroundColor: '#F1AEB5',
+  },
+  logoutButtonText: {
+    color: '#D94854',
+  },
+  sheetContainer: {
+    padding: 20,
+    alignItems: 'center',
+  },
+  sheetTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#495057',
+  },
+  sheetSubtitle: {
+    fontSize: 14,
+    color: '#6C757D',
+    marginTop: 10,
+    textAlign: 'center',
+  },
+  sheetButtonRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginTop: 25,
+    width: '100%',
+  },
+  sheetButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 30,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  cancelButton: {
+    backgroundColor: '#E9ECEF',
+  },
+  confirmLogoutButton: {
+    backgroundColor: '#F1AEB5',
+  },
+  sheetButtonText: {
+    color: '#495057',
+    fontSize: 16,
+    fontWeight: '500',
+  },
+};

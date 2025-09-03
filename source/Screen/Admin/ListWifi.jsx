@@ -402,7 +402,7 @@ export default function ListWifi() {
                 ? 'menghubungkan'
                 : connected
                 ? 'Terhubung'
-                : ' Buka Konfigurasi '}
+                : ' Submit '}
             </Text>
           </TouchableOpacity>
         </View>

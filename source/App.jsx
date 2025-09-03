@@ -24,6 +24,15 @@ import WifiConfiguration from './Screen/Admin/WifiConfiguration';
 import WifiDirect from './Screen/Admin/WifiDirect';
 import WebViewConfigure from './Screen/Admin/WebViewConfigure';
 import Pembayaran from './Screen/payment';
+import {
+  getAllHistory,
+  getMyData,
+  useApiUrl,
+  getMyHistory,
+  SaveHistory,
+  sendLog,
+} from './Config/firebaseHelper';
+
 const Stack = createNativeStackNavigator();
 
 export default function App() {
@@ -51,7 +60,7 @@ function RootNavigator() {
   } = useGlobalStateContext();
   const {nfcSupport, nfcEnabled} = useNfcContext();
   useEffect(() => {
-    if (isOnline && nfcSupport && nfcEnabled) {
+    if (nfcSupport && nfcEnabled) {
       // if (isOnline && nfcProcessing && nfcSupport && nfcEnabled) {
       console.log('nfcProcessing', nfcProcessing);
       console.log('nfcSupport', nfcSupport);
@@ -78,14 +87,7 @@ function RootNavigator() {
     } else {
       setLoading(true); // Jika mqttConnected false, set loading false
     }
-  }, [
-    isOnline,
-    checkStatus,
-    statusLogin,
-    paymentStatus,
-    nfcSupport,
-    nfcEnabled,
-  ]); // Menunggu perubahan pada mqttConnected
+  }, [checkStatus, statusLogin, paymentStatus, nfcSupport, nfcEnabled]); // Menunggu perubahan pada mqttConnected
 
   if (loading || loginRole === null) {
     // Tampilkan loading jika sedang memuat data atau saat mqttConnected false

@@ -1,6 +1,7 @@
 import React, {createContext, useContext, useEffect, useState} from 'react';
 
 import {connectMQTT} from './mqtt'; // Sesuaikan dengan path yang benar
+import {simpanPhoneDataId} from './firebaseHelper';
 const GlobalStateContext = createContext();
 
 export const useGlobalStateContext = () => useContext(GlobalStateContext);
@@ -24,10 +25,11 @@ export const GlobalStateProvider = ({children}) => {
   const [checkStatus, setStatusLogin] = useState(null);
   const [tempId, setTempId] = useState('');
   const [statusLogin, setLogin] = useState(null);
-  const [refrashMyData, setRefreshMyData] = useState(null);
+  const [refrashMyData, setRefreshMyData] = useState(true);
   const [totalDevice, setTotalDevice] = useState(null);
   const [paymentStatus, setPaymentStatus] = useState(true);
   const [chekingInternet, setChekingInternet] = useState(true);
+  const [restartNFC, setRestartNFC] = useState(true);
   const [attempt, setAttempt] = useState(0);
   const [apiUrl, setApiUrl] = useState('');
 
@@ -64,6 +66,9 @@ export const GlobalStateProvider = ({children}) => {
       }
     }
   };
+  useEffect(() => {
+    simpanPhoneDataId();
+  }, []);
 
   useEffect(() => {
     if (chekingInternet) {
@@ -126,6 +131,8 @@ export const GlobalStateProvider = ({children}) => {
         loginImageToken,
         setLoginImageToken,
         apiUrl,
+        setRestartNFC,
+        restartNFC,
         setApiUrl,
       }}
     >

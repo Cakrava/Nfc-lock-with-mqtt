@@ -14,7 +14,7 @@ import {useNavigation} from '@react-navigation/native';
 import RBSheet from 'react-native-raw-bottom-sheet';
 import {styleClass} from '../../Config/styleClass';
 import Toast from 'react-native-simple-toast';
-import {useDeviceStatusContext} from '../../Config/DeviceListContext'; // Pastikan path ini benar
+import {useDeviceStatusContext} from '../../Config/DeviceListContext';
 import NewDevice from '../../Components/NewDevice';
 import {sendLog} from '../../Config/firebaseHelper';
 
@@ -22,8 +22,7 @@ const {height} = Dimensions.get('window');
 
 export default function Device() {
   const navigation = useNavigation();
-  // Ambil `deviceList` dan `deleteDevice`. `realtimeMessages` sudah tidak ada.
-  const {deviceList, deleteDevice} = useDeviceStatusContext();
+  const {deviceList, deleteDevice, forceCloseDoor} = useDeviceStatusContext();
   const [tinggi, setTinggi] = useState(height * 0.8);
   const bottomSheetRef = useRef();
 
@@ -55,14 +54,48 @@ export default function Device() {
     );
   };
 
+  // Fungsi handler baru untuk menutup pintu secara paksa
+  const handleForceClose = (topic, name) => {
+    Alert.alert(
+      'Konfirmasi Tutup Paksa',
+      `Apakah Anda yakin ingin menutup pintu "${name}"?`,
+      [
+        {text: 'Batal', style: 'cancel'},
+        {
+          text: 'Ya, Tutup',
+          onPress: () => {
+            forceCloseDoor(topic, name)
+              .then(() => {
+                Toast.show(`Pintu "${name}" berhasil ditutup.`, Toast.LONG);
+              })
+              .catch(error => {
+                Toast.show(`Gagal menutup pintu: ${error.message}`, Toast.LONG);
+              });
+          },
+          style: 'destructive',
+        },
+      ],
+      {cancelable: true},
+    );
+  };
+
   const renderItem = ({item}) => {
-    // Tentukan status dan warna berdasarkan properti `item.status` yang baru.
     const isOnline = item.status === 'online';
     const statusText = isOnline ? 'Online' : 'Offline';
     const statusBgColor = isOnline ? 'bg-green-500' : 'bg-red-500';
     const statusPayloadText = isOnline
       ? 'Device is active'
       : 'Device is offline';
+    const lockStateText =
+      item.lockState.charAt(0).toUpperCase() + item.lockState.slice(1);
+    const lockStateIcon =
+      item.lockState === 'terbuka'
+        ? 'lock-open-outline'
+        : 'lock-closed-outline';
+    const lockStateColor =
+      item.lockState === 'terbuka' ? 'text-green-600' : 'text-red-600';
+    const lockStateIconColor =
+      item.lockState === 'terbuka' ? '#22c55e' : '#ef4444';
 
     return (
       <TouchableOpacity
@@ -85,8 +118,52 @@ export default function Device() {
               Topik: {item.topic}
             </Text>
 
+            {item.lockState !== 'tidak diketahui' && (
+              <View style={styleClass('mt-3')}>
+                <View
+                  style={styleClass('flex-row items-center justify-between')}
+                >
+                  {/* Bagian Kiri: Status Pintu */}
+                  <View style={styleClass('flex-row items-center')}>
+                    <Icon
+                      name={lockStateIcon}
+                      size={22}
+                      color={lockStateIconColor}
+                    />
+                    <Text
+                      style={styleClass(
+                        `text-lg font-bold ml-2 ${lockStateColor}`,
+                      )}
+                    >
+                      {lockStateText}
+                    </Text>
+                  </View>
+
+                  {/* Tombol ikon tutup paksa tampil jika pintu terbuka */}
+                  {item.lockState === 'terbuka' && (
+                    <TouchableOpacity
+                      onPress={() => handleForceClose(item.topic, item.name)}
+                      style={styleClass('p-2')}
+                    >
+                      <Icon
+                        name="close-circle-outline"
+                        size={30}
+                        color="#ef4444"
+                      />
+                    </TouchableOpacity>
+                  )}
+                </View>
+
+                {/* Tampilkan baris "Oleh" HANYA JIKA `item.actedBy` memiliki nilai */}
+                {item.actedBy && (
+                  <Text style={styleClass('text-sm text-gray-600 ml-8')}>
+                    Oleh: {item.actedBy}
+                  </Text>
+                )}
+              </View>
+            )}
+
             <View style={styleClass('items-end w-full')}>
-              {/* Logika tampilan status sekarang jauh lebih sederhana */}
               <View
                 style={styleClass(
                   `flex-row center w-1/4 mt-2 rounded-lg p-2 ${statusBgColor}`,
@@ -100,7 +177,6 @@ export default function Device() {
                   {statusText}
                 </Text>
               </View>
-              {/* Anda bisa menampilkan payload teks jika mau, atau hapus baris ini */}
               <Text style={styleClass('text-xs text-gray-500 mt-1')}>
                 {statusPayloadText}
               </Text>
@@ -132,6 +208,13 @@ export default function Device() {
           keyExtractor={item => item.id}
           renderItem={renderItem}
           style={styleClass('p-2')}
+          ListEmptyComponent={
+            <View style={styleClass('items-center justify-center mt-20')}>
+              <Text style={styleClass('text-lg text-gray-500')}>
+                Tidak ada perangkat ditemukan.
+              </Text>
+            </View>
+          }
         />
       </View>
 

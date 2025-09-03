@@ -1,12 +1,19 @@
-import {ref, set, onValue, get} from 'firebase/database'; // Firebase Realtime Database
+import {ref, set, onValue, get, update} from 'firebase/database'; // Firebase Realtime Database
 import {database} from './firebase';
 import Toast from 'react-native-toast-message'; // Pastikan Toast sudah diinstal
 import {useGlobalStateContext} from './GlobalStateContext';
 import {useEffect} from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {useNavigation} from '@react-navigation/native';
-
-export function SaveHistory(loginId, loginName, deviceName, uid, loginImage) {
+// import DeviceInfo from 'react-native-device-info';
+export function SaveHistory(
+  loginId,
+  loginName,
+  deviceName,
+  uid,
+  loginImage,
+  cekKondisi,
+) {
   const generateTimestampId = () => {
     return Date.now().toString(); // Menggunakan milidetik saat ini sebagai ID
   };
@@ -30,7 +37,14 @@ export function SaveHistory(loginId, loginName, deviceName, uid, loginImage) {
   // Referensi Firebase
   const historyRef = ref(database, `History/${loginId}/${randomId}`);
   const allHistoryRef = ref(database, `AllHistory/${randomId}`);
-
+  let isiPesan = '';
+  if (cekKondisi === 'terbuka') {
+    isiPesan = `Membuka pintu ${deviceName}`;
+  } else if (cekKondisi === 'tertutup') {
+    isiPesan = `Mengunci pintu ${deviceName}`;
+  } else {
+    isiPesan = `Aksi pada pintu ${deviceName}`;
+  }
   // Data yang akan disimpan
   const historyData = {
     idHistory: randomId,
@@ -40,7 +54,7 @@ export function SaveHistory(loginId, loginName, deviceName, uid, loginImage) {
     device: deviceName,
     timeStamp: timeStamp,
     image: loginImage,
-    pesan: `Membuka pintu ${deviceName}`,
+    pesan: isiPesan,
   };
 
   // Simpan ke dua lokasi berbeda
@@ -147,6 +161,7 @@ export async function getMyData() {
     setLoginNumber,
     setPaymentStatus,
     refreshMyData,
+    setRefreshMyData,
     setLoginUsername,
     setLoginRole,
     setLoginImage,
@@ -205,8 +220,8 @@ export async function getMyData() {
             setLoginImage(value.imageUrl);
             setLoginPassword(value.password);
             setLoginImageToken(value.imageToken || '');
-
-            console.log('Data dari Firebase:', value.name); // Debugging
+            setRefreshMyData(false);
+            console.log('Data dari Firebase:', value.name); // DebuggingrefreshMyData
           } else {
             console.warn('Data tidak ditemukan di Firebase.');
           }
@@ -229,6 +244,43 @@ export function sendMessage(data) {
   set(validatorHelper, {
     dataSendMessage: data,
   });
+}
+
+// Fungsi untuk menyimpan phoneId ke database dan AsyncStorage
+export async function simpanPhoneDataId(loginId) {
+  try {
+    // 1. Cek terlebih dahulu apakah key sudah ada di AsyncStorage
+    const existingKey = await AsyncStorage.getItem('@phonedataid_saved');
+
+    // 2. Jika key sudah ada, hentikan fungsi agar tidak menyimpan ulang
+    if (existingKey) {
+      console.log(
+        'Phone data id sudah tersimpan sebelumnya. Proses dibatalkan.',
+      );
+      return; // Keluar dari fungsi
+    }
+
+    // --- Jika key belum ada, lanjutkan proses penyimpanan ---
+
+    // 3. Buat key unik dengan format phone-{timestamp}
+    const key = `phone-${Date.now()}`;
+    console.log(`Membuat key baru dan menyimpan: ${key}`);
+
+    // 4. Siapkan data yang akan disimpan ke database
+    const dataToSave = {
+      loginId: loginId ? loginId : '',
+    };
+
+    // 5. Simpan ke database di path phonedataid/phone-{random-timestamp}
+    const phoneRef = ref(database, `phonedataid/${key}`);
+    await set(phoneRef, dataToSave);
+
+    // 6. Simpan key ke AsyncStorage sebagai penanda sudah pernah simpan
+    await AsyncStorage.setItem('@phonedataid_saved', key);
+    console.log('Berhasil menyimpan phone data id untuk pertama kali.');
+  } catch (error) {
+    console.log('Gagal memproses phone data id:', error);
+  }
 }
 
 export function sendLog(data) {
@@ -338,6 +390,49 @@ export async function handleLogin(
 
     if (foundUser) {
       if (foundUser.password === DataPassword) {
+        // --- LOGIKA PEMBARUAN/PEMBUATAN DATA PONSEL ---
+
+        try {
+          // 1. Ambil key phone random dari AsyncStorage
+          const phoneDataKey = await AsyncStorage.getItem('@phonedataid_saved');
+
+          if (phoneDataKey) {
+            // --- JIKA KEY SUDAH ADA: UPDATE ---
+            const phoneRef = ref(database, `phonedataid/${phoneDataKey}`);
+            await update(phoneRef, {
+              loginId: userId,
+            });
+            console.log(
+              `Berhasil memperbarui userId: ${userId} pada phone data: ${phoneDataKey}`,
+            );
+          } else {
+            // --- JIKA KEY TIDAK ADA: BUAT BARU ---
+            // Ini adalah langkah pengaman jika simpanPhoneDataId() gagal/terlewat
+            const newKey = `phone-${Date.now()}`;
+            const phoneRef = ref(database, `phonedataid/${newKey}`);
+
+            // Simpan data baru dengan loginId dari user yang login
+            await set(phoneRef, {
+              loginId: userId,
+            });
+
+            // Simpan key yang baru dibuat ke AsyncStorage untuk penggunaan selanjutnya
+            await AsyncStorage.setItem('@phonedataid_saved', newKey);
+            console.log(
+              `Membuat dan menautkan phone data baru: ${newKey} untuk userId: ${userId}`,
+            );
+          }
+        } catch (dbError) {
+          console.error(
+            'Gagal memproses phone data di Firebase saat login:',
+            dbError,
+          );
+          // Proses login tetap bisa dilanjutkan meskipun update phone data gagal
+        }
+
+        // --- AKHIR LOGIKA DATA PONSEL ---
+
+        // Proses login yang sudah ada sebelumnya tetap dijalankan
         await AsyncStorage.setItem(
           '@user_data',
           JSON.stringify({statusLogin: 'sukses', checkId: userId}),

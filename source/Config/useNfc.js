@@ -8,7 +8,9 @@ import React, {
 import {connectMQTT, publishMessage} from './mqtt';
 import NfcManager, {NfcTech} from 'react-native-nfc-manager';
 import {database} from './firebase';
-import {ref, get} from 'firebase/database';
+import {ref, get, set} from 'firebase/database';
+
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {useGlobalStateContext} from './GlobalStateContext';
 import {
   getAllHistory,
@@ -46,14 +48,15 @@ export const NfcProvider = ({children}) => {
     loginName,
     loginImage,
   } = useGlobalStateContext();
-  useApiUrl();
-  getMyHistory();
-  getAllHistory();
-  getMyData();
 
   const isRequestingNfcRef = useRef(false);
   const scanLoopTimeoutRef = useRef(null);
   const isMountedRef = useRef(true);
+
+  useApiUrl();
+  getMyHistory();
+  getAllHistory();
+  getMyData();
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -196,6 +199,7 @@ export const NfcProvider = ({children}) => {
   };
 
   const startScan = async () => {
+    // Pengecekan awal, tidak berubah
     if (!isMountedRef.current || !aktif) {
       if (isMountedRef.current && !aktif) {
         console.log('startScan: Sesi tidak aktif, tidak memulai pemindaian.');
@@ -209,9 +213,7 @@ export const NfcProvider = ({children}) => {
     isRequestingNfcRef.current = true;
 
     let currentPesan = 'Dekatkan ke perangkat';
-    if (!isOnline) {
-      currentPesan = 'Tidak ada koneksi internet. Deteksi kartu tetap aktif.';
-    } else if (!mqttConnected) {
+    if (!mqttConnected) {
       currentPesan = 'Jaringan server terputus. Deteksi kartu tetap aktif.';
     }
     if (isMountedRef.current) {
@@ -223,7 +225,10 @@ export const NfcProvider = ({children}) => {
     try {
       try {
         await NfcManager.cancelTechnologyRequest();
-      } catch (e) {}
+      } catch (e) {
+        /* Abaikan error pembatalan */
+      }
+
       await NfcManager.requestTechnology(NfcTech.Ndef);
       if (!isMountedRef.current || !aktif) {
         isRequestingNfcRef.current = false;
@@ -244,7 +249,7 @@ export const NfcProvider = ({children}) => {
           setIsDetect(true);
         }
 
-        if (!mqttConnected || !isOnline) {
+        if (!mqttConnected) {
           if (isMountedRef.current) {
             setMessageDetect(
               `Kartu ${uid} terdeteksi. Server tidak terhubung.`,
@@ -297,6 +302,59 @@ export const NfcProvider = ({children}) => {
           const deviceName = deviceData.name;
           const topic = deviceData.topic;
 
+          // ==========================================================
+          //         MODIFIKASI: MENGAMBIL DATA PENGGUNA AKTIF
+          // ==========================================================
+          let currentUserId = null;
+          let currentUserName = 'Pengguna tidak dikenal';
+          let currentUserImage = '';
+
+          try {
+            // 1. Dapatkan kunci phone-random dari AsyncStorage
+            const phoneDataKey = await AsyncStorage.getItem(
+              '@phonedataid_saved',
+            );
+            if (!phoneDataKey) {
+              throw new Error(
+                'Kunci data ponsel tidak ditemukan. Silakan login ulang.',
+              );
+            }
+
+            // 2. Dapatkan loginId (currentUserId) dari 'phonedataid'
+            const phoneRef = ref(database, `phonedataid/${phoneDataKey}`);
+            const phoneSnapshot = await get(phoneRef);
+            if (!phoneSnapshot.exists() || !phoneSnapshot.val().loginId) {
+              throw new Error('Sesi pengguna tidak valid. Coba login ulang.');
+            }
+            currentUserId = phoneSnapshot.val().loginId;
+
+            // 3. Dapatkan detail pengguna dari 'Anggota'
+            const userRef = ref(database, `Anggota/${currentUserId}`);
+            const userSnapshot = await get(userRef);
+            if (!userSnapshot.exists()) {
+              throw new Error(
+                `Data untuk pengguna dengan ID ${currentUserId} tidak ditemukan.`,
+              );
+            }
+
+            const userData = userSnapshot.val();
+            currentUserName = userData.name || 'Nama Tidak Ada';
+            currentUserImage = userData.imageUrl || '';
+          } catch (userError) {
+            console.error('Gagal mengambil data pengguna:', userError.message);
+            if (isMountedRef.current) {
+              setPesan(userError.message);
+              setIsInvalid(true);
+            }
+            // Hentikan proses jika data pengguna gagal didapatkan
+            isRequestingNfcRef.current = false;
+            return;
+          }
+
+          // ==========================================================
+          //         LANJUTAN LOGIKA DENGAN DATA PENGGUNA BARU
+          // ==========================================================
+
           if (!topic) {
             if (isMountedRef.current) {
               setPesan(`Topic tidak valid untuk ${deviceName}`);
@@ -306,42 +364,97 @@ export const NfcProvider = ({children}) => {
               `Gagal proses ${deviceName} (UID: ${uid}), topic tidak ada di Firebase.`,
             );
           } else {
-            // ==========================================================
-            //               MODIFIKASI UTAMA BERDASARKAN KONTEKS SERVER
-            // ==========================================================
-
-            // Langkah 2: Gunakan 'topic' dari data kartu untuk mencari status perangkat fisik.
-            // Path ini disesuaikan dengan cara server Node.js menyimpan status.
             const checkStatusDeviceRef = ref(
               database,
               `Device/${topic}/status`,
             );
             const snapStatusData = await get(checkStatusDeviceRef);
-            const deviceStatus = snapStatusData.val(); // Langsung ambil nilainya, mis: "online" atau "offline"
+            const deviceStatus = snapStatusData.val();
 
             console.log(
-              `startScan: UID Valid: ${uid}, Topic/DeviceKey: ${topic}, Status: ${deviceStatus}`,
+              `startScan: UID Valid: ${uid}, Topic: ${topic}, Status: ${deviceStatus}`,
             );
 
-            // Kondisi utama: Periksa apakah perangkat fisik online.
             if (deviceStatus === 'online') {
-              if (isMountedRef.current) {
-                setIsInvalid(false);
-                setIsSuccess(true);
-                setPesan(`Membuka pintu ${deviceName}`);
+              const checkKondisiPintuRef = ref(
+                database,
+                `Device/${topic}/kondisi`,
+              );
+              const snapKondisi = await get(checkKondisiPintuRef);
+              const kondisiData = snapKondisi.val() || {
+                status: 'tertutup',
+                oleh: '',
+              };
+              const statusPintu = kondisiData.status || 'tertutup';
+              const pemilikPintuId = kondisiData.oleh || '';
+
+              if (statusPintu === 'tertutup') {
+                if (isMountedRef.current) {
+                  setIsInvalid(false);
+                  setIsSuccess(true);
+                  setPesan(`Membuka pintu ${deviceName}...`);
+                }
+                publishMessage('buka', topic);
+                await set(checkKondisiPintuRef, {
+                  status: 'terbuka',
+                  oleh: currentUserId,
+                });
+
+                SaveHistory(
+                  currentUserId,
+                  currentUserName,
+                  deviceName,
+                  uid,
+                  currentUserImage,
+                  'terbuka',
+                );
+                sendLog(
+                  `Pintu ${deviceName} dibuka oleh ${currentUserName} (UID: ${uid})`,
+                );
+              } else {
+                // statusPintu === 'terbuka'
+                if (currentUserId === pemilikPintuId) {
+                  if (isMountedRef.current) {
+                    setIsInvalid(false);
+                    setIsSuccess(true);
+                    setPesan(`Menutup pintu ${deviceName}...`);
+                  }
+                  publishMessage('tutup', topic);
+                  await set(checkKondisiPintuRef, {
+                    status: 'tertutup',
+                    oleh: '',
+                  });
+
+                  SaveHistory(
+                    currentUserId,
+                    currentUserName,
+                    deviceName,
+                    uid,
+                    currentUserImage,
+                    'tertutup',
+                  );
+                  sendLog(
+                    `Pintu ${deviceName} ditutup oleh ${currentUserName} (UID: ${uid})`,
+                  );
+                } else {
+                  const pemilikRef = ref(database, `Anggota/${pemilikPintuId}`);
+                  const snapPemilik = await get(pemilikRef);
+                  let namaPemilik = 'pengguna lain';
+                  if (snapPemilik.exists()) {
+                    namaPemilik = snapPemilik.val().name || 'pengguna lain';
+                  }
+
+                  if (isMountedRef.current) {
+                    setIsInvalid(true);
+                    setIsSuccess(false);
+                    setPesan(`Pintu dibuka oleh ${namaPemilik}`);
+                  }
+                  sendLog(
+                    `Akses ${currentUserName} ditolak, pintu sedang digunakan oleh ${namaPemilik}`,
+                  );
+                }
               }
-              // Publikasikan pesan ke MQTT untuk membuka pintu
-              publishMessage(
-                'Pintu Dibuka oleh pengguna dengan UID valid',
-                topic,
-              );
-              // Simpan riwayat akses
-              SaveHistory(loginId, loginName, deviceName, uid, loginImage);
-              sendLog(
-                `Pintu dibuka oleh ${loginName} (${deviceName} - UID: ${uid})`,
-              );
             } else {
-              // Jika status bukan 'online' (bisa 'offline' atau null)
               if (isMountedRef.current) {
                 setPesan(`Perangkat ${deviceName} offline!`);
                 setIsInvalid(true);
@@ -353,20 +466,41 @@ export const NfcProvider = ({children}) => {
             }
           }
         } else {
-          // Jika UID kartu tidak ditemukan di Firebase
+          // Jika UID kartu tidak ditemukan, perlu tahu siapa yang mencoba
+          // Kita fetch data pengguna bahkan untuk UID yang tidak valid untuk keperluan logging
+          let attemptedBy = 'Pengguna tidak dikenal';
+          try {
+            const phoneKey = await AsyncStorage.getItem('@phonedataid_saved');
+            if (phoneKey) {
+              const pRef = ref(database, `phonedataid/${phoneKey}`);
+              const pSnap = await get(pRef);
+              if (pSnap.exists() && pSnap.val().loginId) {
+                const uRef = ref(database, `Anggota/${pSnap.val().loginId}`);
+                const uSnap = await get(uRef);
+                if (uSnap.exists()) {
+                  attemptedBy = uSnap.val().name;
+                }
+              }
+            }
+          } catch (logError) {
+            console.error(
+              'Gagal mendapatkan nama pengguna untuk log UID tidak valid:',
+              logError,
+            );
+          }
+
           if (isMountedRef.current) {
             setPesan('Perangkat tidak dikenali!');
             setIsInvalid(true);
             setIsSuccess(false);
           }
           console.log(`startScan: UID Tidak Valid: ${uid}`);
-          sendLog(`${loginName} mendeteksi UID ${uid} yang tidak dikenali!`);
+          sendLog(`${attemptedBy} mendeteksi UID ${uid} yang tidak dikenali!`);
         }
 
         if (isMountedRef.current && aktif) {
           await new Promise(r => setTimeout(r, isSuccess ? 1500 : 3000));
         }
-        // --- AKHIR BLOK LOGIKA PEMROSESAN TAG ---
       } else {
         if (isMountedRef.current) {
           setIsDetect(false);
@@ -394,7 +528,10 @@ export const NfcProvider = ({children}) => {
       isRequestingNfcRef.current = false;
       try {
         await NfcManager.cancelTechnologyRequest();
-      } catch (e) {}
+      } catch (e) {
+        /* Abaikan */
+      }
+
       if (isMountedRef.current && aktif) {
         clearTimeout(scanLoopTimeoutRef.current);
         scanLoopTimeoutRef.current = setTimeout(() => {
