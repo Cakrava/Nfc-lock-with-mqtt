@@ -1,82 +1,136 @@
 # SIKESA - Smart IoT Door Lock System (NFC, MQTT & WiFi Direct)
 
-SIKESA (Sistem Keamanan Elektronik Sekolah / Smart Key System) adalah sistem penguncian pintu dan loker pintar berbasis IoT yang mengintegrasikan mikrokontroler **ESP8266**, **Solenoid Door Lock 12V**, **NFC Tag**, dan aplikasi mobile/web. Sistem ini dirancang dengan redundansi ganda: komunikasi cloud berbasis **MQTT** sebagai jalur utama dan **SoftAP WiFi Direct HTTP Server** sebagai jalur darurat saat internet terputus.
+SIKESA (Sistem Keamanan Elektronik Sekolah / Smart Key System) adalah sistem penguncian pintu dan loker pintar berbasis IoT yang mengintegrasikan mikrokontroler **ESP8266**, **Solenoid Door Lock 12V**, **NFC Tag**, **Firebase Realtime Database**, backend microservice **Simple API Image**, dan aplikasi mobile React Native.
+
+Sistem ini dirancang dengan redundansi ganda: komunikasi cloud berbasis **MQTT** sebagai jalur utama dan **SoftAP WiFi Direct HTTP Server** sebagai jalur darurat saat internet terputus, dilengkapi verifikasi visual identitas pengguna via microservice penyimpanan gambar.
 
 🌐 **Live Interactive Sandbox & Simulasi:**  
-👉 **[https://sikesa.mydiskom.my.id/](https://sikesa.mydiskom.my.id/)**
+👉 **[https://sikesa.mydiskom.my.id/](https://sikesa.mydiskom.my.id/)**  
+📦 **Repositori Terkait (Media Microservice):**  
+👉 **[Cakrava/simple-api-image](https://github.com/Cakrava/simple-api-image)**
 
 ---
 
-## 📌 Prinsip & Alur Kerja Sistem
+## 📌 Prinsip & Arsitektur Sistem
 
-Sistem SIKESA mengimplementasikan dua mode komunikasi yang fleksibel dan andal:
+Ekosistem SIKESA menghubungkan aplikasi mobile, microservice media, cloud database, broker pesan, dan node IoT fisik dalam satu kesatuan:
 
 ```
-                  ┌────────────────────────────────────────────────────────┐
-                  │                 SMARTPHONE (APP SIKESA)               │
-                  └───────────────┬────────────────────────┬───────────────┘
-                                  │ (Mode 1: Online)       │ (Mode 2: Darurat)
-                                  │ NFC Tap & MQTT Pub     │ WiFi Direct HTTP POST
-                                  ▼                        ▼
-                    ┌───────────────────────────┐    ┌───────────────────────────┐
-                    │    MQTT Broker (Cloud)    │    │ SoftAP ESP8266 (Lokal)    │
-                    │      broker.emqx.io       │    │  http://192.168.4.1:80    │
-                    └─────────────┬─────────────┘    └─────────────┬─────────────┘
-                                  │                                │
-                                  │ MQTT Sub: Device-19d8G         │ POST /message
-                                  └───────────────┬────────────────┘
-                                                  ▼
-                                    ┌───────────────────────────┐
-                                    │      NODE ESP8266         │
-                                    │    - Buzzer Pin D8        │
-                                    │    - Relay Pin D3         │
-                                    └─────────────┬─────────────┘
-                                                  ▼
-                                    ┌───────────────────────────┐
-                                    │  12V SOLENOID DOOR BOLT   │
-                                    │ (Delay 5 Detik Auto-Lock) │
-                                    └───────────────────────────┘
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│                               SMARTPHONE (APLIKASI SIKESA)                             │
+└───────────────┬───────────────────────────┬───────────────────────────┬────────────────┘
+                │                           │                           │
+                │ 1. Dynamic Discovery      │ 2. Upload / Fetch Foto    │ 3. Akses Darurat (WiFi Direct)
+                │    & Cek Status Online    │    (Token-based Media)    │    HTTP POST /message
+                ▼                           ▼                           ▼
+  ┌───────────────────────────┐ ┌───────────────────────────┐ ┌───────────────────────────┐
+  │         FIREBASE          │ │    SIMPLE API IMAGE       │ │  SoftAP ESP8266 (Lokal)   │
+  │     Realtime Database     │ │ (Cakrava/simple-api-image)│ │   http://192.168.4.1:80   │
+  │  - validatorHelper/apiUrl │ │ - POST /upload            │ └─────────────┬─────────────┘
+  │  - Data Pengguna (Anggota)│ │ - GET /images/:token      │               │
+  │  - Audit Riwayat (History)│ │ - Server Health & Ping    │               │
+  └─────────────┬─────────────┘ └───────────────────────────┘               │
+                │                                                           │
+                │ 4. Verifikasi UID & Hak Akses                             │
+                ▼                                                           │
+  ┌───────────────────────────┐                                             │
+  │    MQTT Broker (Cloud)    │                                             │
+  │      broker.emqx.io       │                                             │
+  │   Topik: Device-19d8G     │                                             │
+  └─────────────┬─────────────┘                                             │
+                │                                                           │
+                │ 5. MQTT Sub: Perintah "buka"                              │ Perintah "buka"
+                └───────────────────────────┬───────────────────────────────┘
+                                            ▼
+                              ┌───────────────────────────┐
+                              │       NODE ESP8266        │
+                              │    - Buzzer Pin D8        │
+                              │    - Relay Pin D3         │
+                              └─────────────┬─────────────┘
+                                            ▼
+                              ┌───────────────────────────┐
+                              │   12V SOLENOID DOOR BOLT  │
+                              │ (Auto-Relock Delay 5s)    │
+                              └───────────────────────────┘
 ```
+
+---
+
+## 🖼️ Peran Microservice: Simple API Image (`Cakrava/simple-api-image`)
+
+Sistem SIKESA mengintegrasikan backend microservice mandiri [**Cakrava/simple-api-image**](https://github.com/Cakrava/simple-api-image) untuk menangani tugas-tugas kritis yang tidak dibebankan langsung ke Firebase:
+
+### 1. Manajemen Media & Unggah Gambar Profil (`/upload`)
+* **Masalah**: Menyimpan data gambar biner atau Base64 berukuran besar di Firebase Realtime Database menyebabkan pembengkakan kuota, latensi tinggi, dan penurunan performa baca/tulis.
+* **Solusi**: Foto pengguna yang diunggah saat registrasi pengguna baru (`NewUser.jsx`) atau pembaruan profil (`EditUser.jsx`) dikirim langsung ke server `simple-api-image`:
+  * **Metode**: `POST /upload`
+  * **Content-Type**: `multipart/form-data`
+  * **Payload**:
+    * `id`: ID pengguna unik
+    * `image_token`: Token acak 15 karakter (contoh: `A8fK9xL2pQ7wMz1`)
+    * `image`: File biner gambar JPEG/PNG
+* **Serving Gambar Statis**: Server menyajikan gambar melalui endpoint publik bertoken:  
+  `GET /images/:image_token`  
+  URL ini (`${apiUrl}images/${newToken}`) disimpan ke Firebase pada simpul `Anggota/{id}/imageUrl`.
+
+### 2. Audit Trail Visual pada Riwayat Akses Pintu
+* Setiap kali pintu dibuka (baik via NFC tap maupun WiFi direct), fungsi `SaveHistory` mencatat log kejadian ke `History/{loginId}/{timestamp}` dan `AllHistory/{timestamp}`.
+* Log akses tidak hanya mencatat nama dan waktu, tetapi juga **URL foto pengguna dari Simple API Image**.
+* Dashboard dan menu Arsip Admin menampilkan foto wajah pengguna yang melakukan pembukaan pintu, menghadirkan lapisan verifikasi visual anti-penyalahgunaan kartu.
+
+### 3. Dynamic Service Discovery via Firebase (`validatorHelper/apiUrl`)
+* Klien mobile SIKESA tidak melakukan *hardcode* terhadap URL server gambar.
+* Melalui hook `useApiUrl()`, aplikasi secara realtime mendengarkan simpul Firebase:  
+  `validatorHelper/apiUrl`
+* **Keuntungan Arsitektural**: Administrator dapat mengganti alamat IP, port, VPS, domain CDN, atau tunnel pengujian (ngrok) secara instan dari Firebase Console tanpa perlu merilis pembaruan atau mengompilasi ulang aplikasi APK React Native.
+
+### 4. Status Online & Availability Health Check
+* Microservice ini bertindak sebagai validator ketersediaan layanan (*service availability*).
+* Digunakan untuk memverifikasi apakah jalur internet/server sedang aktif (*online*) atau terputus (*offline*), sehingga aplikasi dapat segera menentukan apakah harus beralih ke mode darurat **WiFi Direct**.
+
+---
+
+## 📌 Alur Komunikasi Redundansi Ganda
 
 ### 1. Jalur Utama: Online Cloud via NFC & MQTT
-1. **NFC Tap**: Pengguna mendekatkan smartphone ke kumparan/tag NFC pada unit fisik pintu.
-2. **Identifikasi Data**: Chip NFC menyimpan informasi identitas perangkat (seperti topik MQTT perangkat).
-3. **Validasi & Publish**: Aplikasi memverifikasi hak akses pengguna di Firebase/Database, kemudian mem-publish pesan `"buka"` atau `"Pintu Dibuka oleh pengguna dengan UID valid"` ke topik MQTT `Device-19d8G` pada broker (`broker.emqx.io:1883`).
-4. **Respon ESP8266**: Node ESP8266 yang berlangganan (*subscribe*) pada topik tersebut menerima pesan, menyalakan buzzer pin `D8` sebanyak 2 kali (interval 200ms), lalu mengaktifkan relay pin `D3` (LOW).
-5. **Auto-Relock 5 Detik**: Lidah solenoid membuka kunci selama 5 detik (`delay(5000)`), kemudian relay kembali nonaktif (HIGH) untuk mengunci pintu kembali secara otomatis.
+1. **NFC Tap**: Pengguna menempelkan smartphone ke koil NFC pada kusen pintu/loker.
+2. **Identifikasi Data**: Tag NFC memuat NDEF topic broker dan UID perangkat fisik (`Device-19d8G`).
+3. **Validasi & Publish**: Aplikasi memverifikasi hak akses anggota di Firebase, lalu mem-publish pesan `"buka"` ke topik MQTT `Device-19d8G` pada broker (`broker.emqx.io:1883`).
+4. **Respon ESP8266**: Node ESP8266 menerima pesan dari topik subskripsi, menyalakan buzzer pin `D8` 2x (interval 200ms), lalu mengaktifkan relay pin `D3` (LOW).
+5. **Auto-Relock 5 Detik**: Lidah solenoid membuka kunci selama 5 detik (`delay(5000)`), lalu relay kembali nonaktif (HIGH) untuk mengunci kusen pintu kembali secara otomatis.
 
 ### 2. Jalur Cadangan: Emergency Access via WiFi Direct (SoftAP REST API)
-1. **Koneksi Darurat**: Jika jaringan internet atau server terputus, ESP8266 secara simultan memancarkan jaringan hotspot Access Point sendiri:
+1. **Koneksi Darurat**: Jika jaringan internet atau broker terputus, ESP8266 secara bersamaan memancarkan jaringan hotspot Access Point sendiri:
    * **SSID**: `Device-19d8G`
    * **Password**: `SISTEMKEAMANANSEKOLAHAMAN`
    * **IP Gateway**: `192.168.4.1`
-2. **Kirim Perintah HTTP POST**: Smartphone terhubung ke WiFi perangkat dan mengirimkan request JSON ke web server internal port 80:
+2. **Kirim Perintah HTTP POST**: Smartphone terhubung langsung ke WiFi perangkat dan mengirimkan request JSON ke web server internal port 80:
    * **Endpoint**: `POST http://192.168.4.1/message`
    * **Payload**: `{"message": "buka"}`
-3. **Eksekusi Lokal**: ESP8266 mem-parsing body JSON dan langsung memanggil fungsi `open()` tanpa membutuhkan koneksi internet maupun broker cloud.
+3. **Eksekusi Lokal**: ESP8266 mem-parsing body JSON dan langsung memanggil fungsi `open()` secara lokal tanpa ketergantungan pada internet ataupun cloud broker.
 
 ---
 
 ## 📱 Fitur & Menu Aplikasi
 
-Aplikasi mobile SIKESA menyediakan fitur pengelolaan lengkap dengan antarmuka yang bersih:
+Aplikasi mobile SIKESA menyediakan fitur pengelolaan lengkap:
 
 1. **Dashboard & NFC Scanner**  
    * Menampilkan status sinkronisasi realtime dengan MQTT broker (*Connected* / *Disconnected*).
    * Area pemindaian NFC interaktif dengan indikator visual dan tombol koneksi ulang (*Reconnect*).
-   * Menampilkan banner edukasi/informasi sistem dan ringkasan riwayat akses terbaru.
+   * Menampilkan banner edukasi sistem dan ringkasan riwayat akses terbaru beserta foto pengguna.
 2. **Manajemen Pengguna (User)**  
-   * Mengatur data anggota yang memiliki otorisasi untuk membuka pintu/loker.
+   * Menambah anggota baru dengan generator ID & password otomatis, upload foto profil ke `simple-api-image`, dan simpan data ke Firebase.
    * Hak akses berjenjang antara Administrator dan Pengguna Umum.
 3. **Riwayat Akses (History & Archive)**  
-   * Mencatat setiap transaksi buka/tutup pintu secara realtime beserta *timestamp*, nama pengguna, dan ID riwayat akses.
+   * Mencatat setiap transaksi buka/tutup pintu secara realtime beserta *timestamp*, nama pengguna, foto wajah, dan ID riwayat akses.
    * Menu Arsip khusus admin untuk kebutuhan audit keamanan berkala.
 4. **WiFi Direct (Emergency Access & Config)**  
    * Memindai hotspot perangkat terdekat berawalan `Device-*`.
    * Membuka pintu darurat via tombol satu-klik melalui protokol HTTP POST lokal.
    * Menu konfigurasi WiFi untuk mengatur SSID dan password jaringan lokal.
 5. **Manajemen Perangkat (Devices)**  
-   * Menambah node perangkat baru, memantau kondisi online/offline melalui topik telemetry status (`Device-19d8G-status`), dan kontrol paksa (*force close*).
+   * Menambah node perangkat baru, memantau kondisi online/offline melalui topik telemetri status (`Device-19d8G-status`), dan kontrol tutup paksa (*force close*).
 
 ---
 
@@ -84,8 +138,8 @@ Aplikasi mobile SIKESA menyediakan fitur pengelolaan lengkap dengan antarmuka ya
 
 | Komponen Hardware | Pin ESP8266 | Deskripsi Fungsional |
 | :--- | :--- | :--- |
-| **Relay Modul 5V (Active LOW)** | `D3` (GPIO0) | Mengontrol tegangan 12V DC ke Solenoid Door Lock |
-| **Active Buzzer** | `D8` (GPIO15) | Indikator suara bip 2x saat akses berhasil |
+| **Relay Modul 5V (Active LOW)** | `D3` (GPIO0) | Mengontrol sakelar daya 12V DC ke Solenoid Door Lock |
+| **Active Buzzer** | `D8` (GPIO15) | Indikator nada suara bip 2x saat akses berhasil |
 | **Catu Daya NodeMCU** | `VIN` & `GND` | Sumber tegangan 5V DC (Micro-USB / Regulator) |
 | **Solenoid Door Lock 12V** | Output Relay | Terhubung ke adaptor daya eksternal 12V DC 2A |
 | **NFC Tag / RFID Coil** | Terpasang di Kusen | Menyimpan NDEF topic & data UID unik pintu |
