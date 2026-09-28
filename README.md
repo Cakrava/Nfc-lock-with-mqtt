@@ -1,5 +1,6 @@
 # NFC Lock with MQTT
 This application is designed by integrating a custom device from the ESP8266 system, which controls the Solenoid Door for locking the door. The application uses a simple principle for communication with the device, where the smartphone is brought close to the system to trigger the NFC coil. The data inside the NFC chip contains system information like the MQTT topic, which is used as the address path to the Broker from the smartphone.
+
 Simulation : https://sikesa.mydiskom.my.id/
 # Dashboard
    The Dashboard view displays several features, such as the application status with the MQTT broker, user management, history, Wi-Fi direct, and devices, with details as follows:
